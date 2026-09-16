@@ -58,11 +58,11 @@ export default tseslint.config(
         { allowConstantExport: true },
       ],
 
-      // Blocked on reconciling the two divergent shared-types
-      // files. ~816 sites today, many of which exist only because
-      // the correct types were not importable. Re-enable as
-      // "warn" once shared-types is a single source of truth.
-      '@typescript-eslint/no-explicit-any': 'off',
+      // shared-types is now a single source of truth, so this is
+      // no longer blocked -- raised from "off" to "warn". Each site
+      // is a place the API contract is not being used. Drive the
+      // count down, then raise this to "error".
+      '@typescript-eslint/no-explicit-any': 'warn',
 
       // Mechanical — must stay clean.
       '@typescript-eslint/no-unused-vars': [

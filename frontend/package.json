@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "lint:fix": "eslint src --report-unused-disable-directives --fix"
+    "lint:fix": "eslint src --report-unused-disable-directives --fix",
+    "lint:focus": "eslint src --report-unused-disable-directives --rule \"{\\\"@typescript-eslint/no-explicit-any\\\":\\\"off\\\"}\""
   },
   "dependencies": {
     "@sentry/react": "^8.0.0",
