@@ -4,7 +4,7 @@
 // ============================================================
 
 import { create } from 'zustand';
-import type { TaskPriority, TaskStatus, DeadlineBucket } from '../../shared-types/index';
+import type { TaskPriority, TaskStatus, DeadlineBucket } from '@shared';
 
 export interface TaskFilters {
   search:          string;

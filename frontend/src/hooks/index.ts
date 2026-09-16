@@ -17,7 +17,7 @@ import type { AddCommentPayload, TimelineEntityType } from '../components/timeli
 import { staffApi } from '../api/staff.api';
 import { tasksApi, taskCommentsApi, taskDepsApi, pipelinesApi, stagesApi, automationApi, taskAuditApi } from '../api/tasks.api';
 import type { StaffListFilters } from '../api/staff.api';
-import type { AddCommentRequest, TransitionRequest } from '../../shared-types/index';
+import type { AddCommentRequest, TransitionRequest } from '@shared';
 import { parseApiError } from '../utils/index';
 
 

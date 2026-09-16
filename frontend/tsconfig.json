@@ -19,6 +19,7 @@
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
+      "@shared":      ["./shared-types/index"],
       "@/*":          ["./src/*"],
       "@api/*":       ["./src/api/*"],
       "@components/*":["./src/components/*"],

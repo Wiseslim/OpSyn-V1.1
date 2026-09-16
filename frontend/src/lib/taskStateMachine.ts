@@ -10,7 +10,7 @@ import type {
   TaskStatus,
   AuthUser,
   TaskDependency,
-} from '../../shared-types/index';
+} from '@shared';
 
 // ── State metadata ───────────────────────────────────────────
 

@@ -7,7 +7,7 @@ import apiClient from './client';
 import type {
   StaffProfile, CreateStaffRequest,
   PaginatedResponse, APIResponse
-} from '../../shared-types/index';
+} from '@shared';
 
 export interface StaffListFilters {
   page?: number;

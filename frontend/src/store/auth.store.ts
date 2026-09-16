@@ -5,7 +5,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { AuthUser } from '../../shared-types/index';
+import type { AuthUser } from '@shared';
 import { tokenStore } from '../api/client';
 
 interface AuthState {

@@ -13,7 +13,7 @@ import type {
   Shift, ShiftAssignment, ShiftSwapRequest, OutageNotificationRule,
   InfraPort, InfraCapacityAlert, InfraMonitoringConfig, InfraAlertRule,
   InfraMapData, InfraUtilisationPoint,
-} from '../../shared-types/index';
+} from '@shared';
 
 // ── Auth ─────────────────────────────────────────────────────
 export const authApi = {

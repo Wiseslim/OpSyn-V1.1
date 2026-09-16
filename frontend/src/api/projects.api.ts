@@ -7,7 +7,7 @@ import apiClient from './client';
 import type {
   Project, ProjectPipelineResponse, ProjectPipelineStage, StageComment,
   PipelineTemplate, APIResponse
-} from '../../shared-types/index';
+} from '@shared';
 
 // Backend returns snake_case; pipeline components expect camelCase.
 function toCamel(s: string): string {

@@ -47,7 +47,7 @@ import type {
   TaskDependency,
   TransitionRequest,
   AddCommentRequest,
-} from '../../../../shared-types/index';
+} from '@shared';
 
 // ── Constants ────────────────────────────────────────────────
 

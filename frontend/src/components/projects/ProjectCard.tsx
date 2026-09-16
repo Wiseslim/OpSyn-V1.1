@@ -4,7 +4,7 @@
 // ============================================================
 
 import { useNavigate } from 'react-router-dom';
-import type { Project } from '../../../shared-types/index';
+import type { Project } from '@shared';
 
 const TYPE_LABELS: Record<string, string> = {
   internal:         'Internal',

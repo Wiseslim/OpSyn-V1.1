@@ -13,7 +13,7 @@ import { PushBackModal } from '../../components/projects/PushBackModal';
 import { ActivityTimeline } from '../../components/timeline';
 import { projectsApi, settingsApi } from '../../api/index';
 import { useUIStore } from '../../store/ui.store';
-import type { ProjectPipelineResponse } from '../../../shared-types/index';
+import type { ProjectPipelineResponse } from '@shared';
 
 function useToast() {
   const { addToast } = useUIStore();

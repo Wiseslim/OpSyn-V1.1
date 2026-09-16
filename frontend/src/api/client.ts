@@ -4,7 +4,7 @@
 // ============================================================
 
 import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
-import type { APIError } from '../../shared-types/index';
+import type { APIError } from '@shared';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
 

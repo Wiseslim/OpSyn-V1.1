@@ -5,7 +5,7 @@
 // ============================================================
 
 import { create } from 'zustand';
-import type { Notification } from '../../shared-types/index';
+import type { Notification } from '@shared';
 
 interface NotificationState {
   items:        Notification[];

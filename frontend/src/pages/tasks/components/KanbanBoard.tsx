@@ -2,7 +2,7 @@
 // OPSYN KANBAN BOARD — src/pages/tasks/components/KanbanBoard.tsx
 // ============================================================
 
-import type { Task, TaskBoard } from '../../../../shared-types/index';
+import type { Task, TaskBoard } from '@shared';
 import KanbanColumn, { type ColumnDef } from './KanbanColumn';
 
 const COLUMNS: ColumnDef[] = [

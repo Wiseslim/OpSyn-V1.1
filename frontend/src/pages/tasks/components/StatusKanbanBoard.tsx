@@ -3,7 +3,7 @@
 // S2.1.4: new / assigned / in_progress / review / blocked / done / archived
 // ============================================================
 
-import type { Task, TaskStatusBoard } from '../../../../shared-types/index';
+import type { Task, TaskStatusBoard } from '@shared';
 import KanbanColumn, { type ColumnDef } from './KanbanColumn';
 
 const STATUS_COLUMNS: ColumnDef[] = [

@@ -5,7 +5,7 @@
 // ============================================================
 
 import { useAuthStore } from '../store/auth.store';
-import type { TaskStatus } from '../../shared-types/index';
+import type { TaskStatus } from '@shared';
 
 // Role levels:
 //   1 = Staff

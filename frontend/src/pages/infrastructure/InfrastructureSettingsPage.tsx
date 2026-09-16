@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { infrastructureApi } from '../../api/index';
-import type { InfraMonitoringConfig, InfraAlertRule } from '../../../shared-types/index';
+import type { InfraMonitoringConfig, InfraAlertRule } from '@shared';
 
 // ── Shared primitives (inline to avoid cross-page imports) ───
 const card = (extra?: React.CSSProperties): React.CSSProperties => ({

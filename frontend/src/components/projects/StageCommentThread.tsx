@@ -3,7 +3,7 @@
 // Displays comments for a pipeline stage with threading
 // ============================================================
 
-import type { StageComment } from '../../../shared-types/index';
+import type { StageComment } from '@shared';
 
 interface StageCommentThreadProps {
   stageId: string;

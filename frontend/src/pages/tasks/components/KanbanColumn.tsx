@@ -2,7 +2,7 @@
 // OPSYN KANBAN COLUMN — src/pages/tasks/components/KanbanColumn.tsx
 // ============================================================
 
-import type { Task } from '../../../../shared-types/index';
+import type { Task } from '@shared';
 import TaskCard from './TaskCard';
 
 export interface ColumnDef {

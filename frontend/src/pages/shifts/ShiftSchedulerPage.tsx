@@ -9,7 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { shiftsApi } from '../../api/index';
 import { staffApi } from '../../api/staff.api';
 import { useToast } from '../../components/ui/Toast';
-import type { ShiftAssignment, Shift } from '../../../shared-types/index';
+import type { ShiftAssignment, Shift } from '@shared';
 
 // ── Design primitives ─────────────────────────────────────────
 const card = (extra?: React.CSSProperties): React.CSSProperties => ({

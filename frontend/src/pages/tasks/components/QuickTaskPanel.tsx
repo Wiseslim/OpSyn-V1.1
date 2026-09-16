@@ -5,7 +5,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { tasksApi } from '../../../api/tasks.api';
-import type { Task } from '../../../../shared-types/index';
+import type { Task } from '@shared';
 
 const PRIORITY_COLOR: Record<string, string> = {
   critical: 'var(--rose)',

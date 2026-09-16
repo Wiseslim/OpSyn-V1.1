@@ -3,7 +3,7 @@
 // Timeline bar chart grouped by deadline bucket
 // ============================================================
 
-import type { Task, TaskBoard } from '../../../../shared-types/index';
+import type { Task, TaskBoard } from '@shared';
 
 const BAR_COLORS: Record<string, string> = {
   critical: 'linear-gradient(90deg,#f87171,#ef4444)',

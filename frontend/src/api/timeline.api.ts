@@ -4,7 +4,7 @@
 // ============================================================
 
 import apiClient from './client';
-import type { APIResponse, PaginatedResponse } from '../../shared-types/index';
+import type { APIResponse, PaginatedResponse } from '@shared';
 import type {
   TimelineEntry,
   TimelineEntityType,

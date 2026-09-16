@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { formsApi } from '../../api/index';
-import type { FormField, FormContext } from '../../../shared-types/index';
+import type { FormField, FormContext } from '@shared';
 
 // ── Shared primitives ─────────────────────────────────────────
 

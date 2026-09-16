@@ -9,7 +9,7 @@ import { tasksApi } from '../../api/tasks.api';
 import { orgApi } from '../../api/index';
 import { useTaskStore } from '../../store/task.store';
 import { useUIStore } from '../../store/ui.store';
-import type { Department, Task, TaskBoard, TaskStatusBoard } from '../../../shared-types/index';
+import type { Department, Task, TaskBoard, TaskStatusBoard } from '@shared';
 
 import KanbanBoard      from './components/KanbanBoard';
 import StatusKanbanBoard from './components/StatusKanbanBoard';

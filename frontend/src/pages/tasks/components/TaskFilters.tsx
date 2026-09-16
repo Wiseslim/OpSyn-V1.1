@@ -4,7 +4,7 @@
 // ============================================================
 
 import type { TaskFilters } from '../../../store/task.store';
-import type { Department } from '../../../../shared-types/index';
+import type { Department } from '@shared';
 
 
 const PRIORITY_OPTIONS = [

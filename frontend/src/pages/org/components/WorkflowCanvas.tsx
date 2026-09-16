@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import type { WorkflowEdge, AddEdgePayload } from '../../../types/workflow.types';
-import type { Department } from '../../../../shared-types/index';
+import type { Department } from '@shared';
 import { WorkflowStageNode } from './WorkflowStageNode';
 import { useAddEdge, useRemoveEdge, useUpdateEdge } from '../../../hooks/useWorkflows';
 

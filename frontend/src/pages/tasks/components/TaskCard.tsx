@@ -2,7 +2,7 @@
 // OPSYN TASK CARD — src/pages/tasks/components/TaskCard.tsx
 // ============================================================
 
-import type { Task } from '../../../../shared-types/index';
+import type { Task } from '@shared';
 
 const PRIORITY_COLOR: Record<string, string> = {
   critical: 'var(--color-red)',

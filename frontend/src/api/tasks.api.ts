@@ -19,7 +19,7 @@ import type {
   TransitionRequest,
   APIResponse,
   PaginatedResponse,
-} from '../../shared-types/index';
+} from '@shared';
 
 // ── Extended task types ───────────────────────────────────────
 

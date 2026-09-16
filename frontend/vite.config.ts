@@ -19,6 +19,9 @@ export default defineConfig({
       { find: /^zustand\/(.+)$/, replacement: `${zustandEsm}/$1.js` },
       { find: 'zustand',         replacement: `${zustandEsm}/index.js` },
       // Project path aliases
+      // NOTE: '@shared' must precede '@' -- vite matches prefixes in
+      // array order, so '@' would otherwise swallow it.
+      { find: '@shared',     replacement: resolve(__dirname, './shared-types/index.ts') },
       { find: '@',           replacement: resolve(__dirname, './src') },
       { find: '@api',        replacement: resolve(__dirname, './src/api') },
       { find: '@components', replacement: resolve(__dirname, './src/components') },

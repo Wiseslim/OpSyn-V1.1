@@ -4,7 +4,7 @@
 // ============================================================
 
 import CoordinatesField from './CoordinatesField';
-import type { FormField } from '../../../shared-types/index';
+import type { FormField } from '@shared';
 
 interface Props {
   field:    FormField;

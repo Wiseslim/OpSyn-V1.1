@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import FormFieldRenderer from './FormFieldRenderer';
 import { formsApi } from '../../api/index';
-import type { FormSchema, FormField, FormFieldDependency, FormData } from '../../../shared-types/index';
+import type { FormSchema, FormField, FormFieldDependency, FormData } from '@shared';
 
 interface Props {
   schema:      FormSchema;

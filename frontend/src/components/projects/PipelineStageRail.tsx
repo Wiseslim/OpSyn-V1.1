@@ -4,7 +4,7 @@
 // entered_at / exited_at / expected_duration display.
 // ============================================================
 
-import type { ProjectPipelineStage } from '../../../shared-types/index';
+import type { ProjectPipelineStage } from '@shared';
 
 interface PipelineStageRailProps {
   stages:          ProjectPipelineStage[];

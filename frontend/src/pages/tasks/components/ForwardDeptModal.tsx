@@ -8,7 +8,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { orgApi } from '../../../api/index';
-import type { Department } from '../../../../shared-types/index';
+import type { Department } from '@shared';
 
 export interface ForwardDeptModalProps {
   taskTitle:       string;

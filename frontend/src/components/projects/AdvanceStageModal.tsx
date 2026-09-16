@@ -5,7 +5,7 @@
 // ============================================================
 
 import { useState } from 'react';
-import type { ProjectPipelineStage } from '../../../shared-types/index';
+import type { ProjectPipelineStage } from '@shared';
 
 interface AdvanceStageModalProps {
   isOpen:        boolean;

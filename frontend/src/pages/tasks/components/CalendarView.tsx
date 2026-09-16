@@ -4,7 +4,7 @@
 // ============================================================
 
 import { useState } from 'react';
-import type { Task, TaskBoard } from '../../../../shared-types/index';
+import type { Task, TaskBoard } from '@shared';
 
 const PRIORITY_COLOR: Record<string, string> = {
   critical: 'var(--rose)',
