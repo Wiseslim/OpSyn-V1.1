@@ -6,7 +6,7 @@
 //           required asterisk in teal, prefix/suffix icons
 // ============================================================
 
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 
 export interface InputProps {
   label?:       string;

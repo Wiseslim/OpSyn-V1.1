@@ -13,7 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { infrastructureApi } from '../../api/index';
 import { useUIStore } from '../../store/ui.store';
-import { Button, Badge, Spinner } from '../../components/ui';
+import { Button, Spinner } from '../../components/ui';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 
 // ── Toast helper ─────────────────────────────────────────────

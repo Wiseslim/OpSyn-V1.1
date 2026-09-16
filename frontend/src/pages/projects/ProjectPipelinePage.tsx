@@ -32,7 +32,6 @@ const STAGE_COLORS: Record<string, string> = {
 
 function StageForms({
   stageId,
-  projectId,
   stageOrder,
 }: {
   stageId:    string;
@@ -103,7 +102,6 @@ function StageForms({
 
 function ProjectPipelineStepper({
   stages,
-  currentStageId,
 }: {
   stages: any[];
   currentStageId?: string | null;
@@ -493,7 +491,6 @@ export function ProjectPipelinePage() {
               .filter((s: any) => s.status === 'approved' || s.status === 'pushed_back')
               .map((stage: any) => {
                 const isApproved   = stage.status === 'approved';
-                const isPushedBack = stage.status === 'pushed_back';
                 const color        = isApproved ? '#16a34a' : '#f59e0b';
                 const comments: any[] = stage.comments ?? [];
 

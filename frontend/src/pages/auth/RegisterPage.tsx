@@ -49,7 +49,7 @@ export default function RegisterPage() {
   const validateStep1 = () => {
     if (!form.org_name.trim()) return 'Organisation name is required.';
     if (!form.slug.trim())     return 'Subdomain is required.';
-    if (!/^[a-z0-9][a-z0-9\-]{2,79}$/.test(form.slug)) return 'Subdomain: 3-80 lowercase letters, numbers, hyphens.';
+    if (!/^[a-z0-9][a-z0-9-]{2,79}$/.test(form.slug)) return 'Subdomain: 3-80 lowercase letters, numbers, hyphens.';
     return '';
   };
 

@@ -185,7 +185,7 @@ function Step2({ onNext, onSkip }: { onNext: (regionId: string, siteId: string) 
 }
 
 // ── Step 3: OLT + SmartOLT ────────────────────────────────────
-function Step3({ regionId, siteId, onNext, onSkip }: {
+function Step3({ siteId, onNext, onSkip }: {
   regionId: string; siteId: string;
   onNext: () => void; onSkip: () => void;
 }) {

@@ -6,7 +6,7 @@
 import apiClient from './client';
 import type {
   TokenResponse, Department, Team, Region, Role, Permission, UserScope,
-  OutageIncident, OnboardingRequest, Notification, AuditLog, ReportSummary,
+  OutageIncident, OnboardingRequest, Notification, AuditLog,
   Project, APIResponse, PaginatedResponse,
   FormSchema, FormField, FormFieldDependency, FormSubmission,
   SmartOLTConfig, SmartOLTOltMap,

@@ -6,7 +6,6 @@
 // Open delay: 120ms | Close grace: 280ms (managed by AppShell)
 // ============================================================
 
-import { useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import OpsynMark from '../components/brand/OpsynMark';
 

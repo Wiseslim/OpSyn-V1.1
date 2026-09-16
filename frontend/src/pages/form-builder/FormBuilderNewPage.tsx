@@ -15,7 +15,6 @@ import {
   type FieldDefinition,
   type FieldTypeInfo,
   type FormSchema,
-  type FormSchemaVersion,
   type FormAssociation,
 } from '../../api/form-builder.api';
 

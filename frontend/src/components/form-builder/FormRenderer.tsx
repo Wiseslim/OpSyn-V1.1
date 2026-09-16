@@ -110,6 +110,9 @@ function isFieldDisabled(field: FieldDefinition, vals: Record<string, unknown>):
   return logic.action === 'disable' && allMet;
 }
 
+// TODO: conditional "require" logic is implemented but not yet wired into the
+// renderer -- no caller applies it. Remove this helper or hook it up.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function isFieldRequired(field: FieldDefinition, vals: Record<string, unknown>): boolean {
   if (field.is_required) return true;
   const logic = field.conditional_logic as ConditionalLogic;
@@ -207,7 +210,7 @@ function CoordinatesInput({
 }
 
 function MultiSelectInput({
-  options, value, onChange, disabled, style,
+  options, value, onChange, disabled,
 }: {
   options:   string[];
   value:     unknown;

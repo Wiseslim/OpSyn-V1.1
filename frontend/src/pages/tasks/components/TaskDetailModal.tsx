@@ -19,11 +19,8 @@ import {
   PIPELINE_FLOW,
   STATE_LABELS,
   STATE_COLORS,
-  TRANSITIONS,
   canMove,
-  getForwardMoves,
   getBackwardMoves,
-  getSideMoves,
   stateFlowIndex,
 } from '../../../lib/taskStateMachine';
 import {

@@ -150,7 +150,6 @@ export function DashboardPage(){
   const k=kpi as any;
 
   const totalStaff     =k?.staff?.total??0;
-  const pendingOnboard =k?.staff?.pending_onboarding??toArr(onboarding).length;
   const liveOutages    =k?.outages?.live??toArr(outages).length;
   const openTasks      =k?.tasks?.open??0;
   const overdueTasks   =k?.tasks?.overdue??0;
@@ -2140,7 +2139,7 @@ export function SettingsPage(){
   const [pipelineForm,setPipelineForm]=useState({name:'',description:''});
   const [orgForm,setOrgForm]=useState({name:'',timezone:''});
   const [orgEditMode,setOrgEditMode]=useState(false);
-  const [featureMinLevel,setFeatureMinLevel]=useState<Record<string,number>>({});
+  const [featureMinLevel]=useState<Record<string,number>>({});
   const [webhookKeyModal,setWebhookKeyModal]=useState(false);
   const [webhookApp,setWebhookApp]=useState('sales');
   const [createdSecret,setCreatedSecret]=useState<{app_name:string;secret_key:string}|null>(null);
@@ -2743,7 +2742,6 @@ export function SettingsPage(){
 export function ActivityPage(){
   const [entityFilter,setEntityFilter]=useState('');
   const [page,setPage]=useState(1);
-  const qc=useQueryClient();
 
   const {data,isLoading,refetch}=useQuery({
     queryKey:['activity','global',entityFilter,page],

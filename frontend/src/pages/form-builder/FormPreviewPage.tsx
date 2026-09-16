@@ -27,7 +27,7 @@ export default function FormPreviewPage() {
     );
   }
 
-  const handleSubmitSuccess = (sub: FormSubmission) => {
+  const handleSubmitSuccess = (_sub: FormSubmission) => {
     navigate(`/form-builder/${schemaId}/submissions`);
   };
 

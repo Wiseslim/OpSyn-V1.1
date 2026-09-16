@@ -5,7 +5,7 @@
 // Blueprint Section 4.1 + Section 15.2
 // ============================================================
 
-import React, { useState } from 'react';
+import React from 'react';
 import type { TimelineEntry, TimelineEventType } from './types';
 import { toRelative, toDateTime } from '../../utils/index';
 

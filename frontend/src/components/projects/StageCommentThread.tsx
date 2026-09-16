@@ -12,7 +12,7 @@ interface StageCommentThreadProps {
   readOnly?: boolean;
 }
 
-export function StageCommentThread({ stageId, projectId, comments, readOnly = false }: StageCommentThreadProps) {
+export function StageCommentThread({ comments }: StageCommentThreadProps) {
   const sortedComments = [...comments].sort((a, b) =>
     new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );

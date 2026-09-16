@@ -148,7 +148,7 @@ function actionBadge(action: string) {
 }
 
 // ── Asset-type chip ───────────────────────────────────────────
-function assetChip(assetType: string) {
+function assetChip(_assetType: string) {
   return {
     display: 'inline-block', padding: '2px 7px',
     borderRadius: 6, fontSize: 10, fontWeight: 600,

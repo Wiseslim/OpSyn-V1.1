@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { formsApi } from '../../api/index';
-import type { FormField, FormFieldDependency, FormContext } from '../../../shared-types/index';
+import type { FormField, FormContext } from '../../../shared-types/index';
 
 // ── Shared primitives ─────────────────────────────────────────
 
@@ -251,7 +251,7 @@ export default function FormBuilderPage() {
   const handleSave = () => {
     setDraftErr('');
     if (!validateDraft()) return;
-    editField ? updateField.mutate() : addField.mutate();
+    if (editField) { updateField.mutate(); } else { addField.mutate(); }
   };
 
   const isBusy = addField.isPending || updateField.isPending;

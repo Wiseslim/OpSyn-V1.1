@@ -5,7 +5,6 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { projectsApi } from '../api/projects.api';
-import type { ProjectPipelineResponse } from '../../shared-types/index';
 
 export function useProjects() {
   return useQuery({
@@ -60,7 +59,7 @@ export function useAddStageComment(projectId: string) {
   return useMutation({
     mutationFn: ({ stageId, body, commentType }: { stageId: string; body: string; commentType: string }) =>
       projectsApi.addStageComment(projectId, stageId, body, commentType),
-    onSuccess: (_, { stageId }) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['pipeline', projectId] });
     },
   });

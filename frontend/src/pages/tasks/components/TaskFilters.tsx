@@ -6,7 +6,6 @@
 import type { TaskFilters } from '../../../store/task.store';
 import type { Department } from '../../../../shared-types/index';
 
-type FilterKey = keyof TaskFilters;
 
 const PRIORITY_OPTIONS = [
   { label: 'All Priorities', value: '' },
