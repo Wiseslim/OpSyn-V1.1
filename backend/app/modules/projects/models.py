@@ -7,7 +7,7 @@
 from __future__ import annotations
 import uuid
 import datetime
-from sqlalchemy import String, Boolean, ForeignKey, Date, Integer, Text, DateTime, Float
+from sqlalchemy import String, Boolean, ForeignKey, Date, Integer, Text, DateTime
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base

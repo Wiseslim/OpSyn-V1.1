@@ -14,9 +14,9 @@ import logging
 from datetime import datetime as _dt, timezone as _tz, timedelta
 
 from celery import shared_task
-from sqlalchemy import select, func, text
+from sqlalchemy import select, text
 
-from app.modules.staff.models import User, StaffProfile
+from app.modules.staff.models import StaffProfile
 
 logger = logging.getLogger(__name__)
 

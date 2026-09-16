@@ -8,9 +8,13 @@ from __future__ import annotations
 import uuid
 import datetime
 from sqlalchemy import String, Boolean, ForeignKey, Date, Integer, Text, DateTime, Numeric, TIMESTAMP
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:  # resolves the string annotations below without a runtime cycle
+    from app.modules.roles.models import Role
+    from app.modules.organisation.models import Department, Team, Region
 
 
 class User(Base):

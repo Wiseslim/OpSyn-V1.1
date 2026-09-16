@@ -65,7 +65,6 @@ class TenantService:
         await db.flush()  # Get tenant.id
 
         # Create Admin user for this tenant
-        from app.modules.staff.models import User
         from sqlalchemy import text
 
         # Find the Admin role for this tenant (created by setup_service)
@@ -77,13 +76,6 @@ class TenantService:
             ON CONFLICT DO NOTHING
         """), {"id": admin_role_id, "tenant_id": tenant.id})
 
-        admin_user = User(
-            username=f"admin_{slug}",
-            email=payload.admin_email,
-            password_hash=hash_password(payload.admin_password),
-            role_id=admin_role_id,
-            is_active=True,
-        )
         # Temporarily set tenant_id without RLS (migration context)
         await db.flush()
 

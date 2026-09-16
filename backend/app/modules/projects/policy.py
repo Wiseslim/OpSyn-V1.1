@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 import uuid
-from fastapi import HTTPException, status
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

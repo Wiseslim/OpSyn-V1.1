@@ -5,19 +5,23 @@
 
 from __future__ import annotations
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from fastapi import HTTPException, status
+from fastapi import HTTPException
+from app.modules.projects.schemas import (
+    PipelineTemplateCreate,
+    PipelineTemplateResponse,
+    PipelineTemplateStageResponse,
+)
 
 from app.modules.projects.models import (
     Project, PipelineTemplate, PipelineTemplateStage, ProjectPipelineStage,
     ProjectStageComment, ProjectStageApproval, StageFieldCompletion,
 )
 from app.modules.projects.schemas import (
-    ProjectPipelineResponse, ProjectPipelineStageResponse, ProjectStageCommentResponse,
-    AdvanceStageRequest, PushBackRequest, StageCommentCreate
+    ProjectPipelineResponse, ProjectPipelineStageResponse, ProjectStageCommentResponse
 )
 from app.modules.projects.policy import can_manage_pipeline, can_comment_on_stage, can_approve_stage
 from app.modules.staff.models import User
@@ -110,7 +114,6 @@ async def start_pipeline(project_id: uuid.UUID, template_id: uuid.UUID, db: Asyn
 
 async def start_graph_pipeline(project_id: uuid.UUID, workflow_id: uuid.UUID, db: AsyncSession, current_user: User) -> ProjectPipelineStage:
     """Start a pipeline from a graph-based DeptWorkflow instead of a linear template."""
-    from app.modules.organisation.models import DeptWorkflow, DeptWorkflowEdge
     from app.modules.organisation.workflow_service import get_workflow_graph_for_project_start
 
     project = await db.get(Project, project_id)

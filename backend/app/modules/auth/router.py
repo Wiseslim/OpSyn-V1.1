@@ -21,6 +21,9 @@ from app.modules.tenants.setup_service import apply_fttx_template
 from app.modules.audit.service import audit_service
 from jose import JWTError
 
+import logging
+log = logging.getLogger("opsyn.auth")
+
 router = APIRouter()
 
 REFRESH_COOKIE = "opsyn_refresh"
@@ -107,7 +110,9 @@ async def login(
                                  after_state={"ip": request.client.host if request.client else "unknown"},
                                  tenant_id=user.tenant_id)
     except Exception:
-        pass
+        # Audit writes are a security control -- never fail the request
+        # over one, but never lose it silently either.
+        log.exception("audit_log_write_failed")
 
     return {
         "success": True,
@@ -233,7 +238,9 @@ async def activate_account(
                                  after_state={"ip": request.client.host if request.client else "unknown"},
                                  tenant_id=user.tenant_id)
     except Exception:
-        pass
+        # Audit writes are a security control -- never fail the request
+        # over one, but never lose it silently either.
+        log.exception("audit_log_write_failed")
 
     return {
         "success": True,
@@ -348,7 +355,7 @@ async def register_tenant(
 
     # Seed template with a placeholder admin id (we'll create the user next)
     admin_placeholder_id = uuid.uuid4()
-    template = await apply_fttx_template(db, tenant.id, admin_placeholder_id)
+    await apply_fttx_template(db, tenant.id, admin_placeholder_id)
 
     # Resolve the Admin role id that was just created
     admin_role_row = (await db.execute(text(
@@ -446,5 +453,7 @@ async def logout(response: Response, request: Request, caller: User = Depends(ge
         await audit_service.log(db, caller.id, "auth.logout", "user", caller.id,
                                  tenant_id=caller.tenant_id)
     except Exception:
-        pass
+        # Audit writes are a security control -- never fail the request
+        # over one, but never lose it silently either.
+        log.exception("audit_log_write_failed")
     return {"success": True, "message": "Logged out successfully."}

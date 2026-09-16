@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.modules.customers.models import (
-    Customer, ExternalTaskLog, PaymentRequest, PaymentConfirmation,
+    ExternalTaskLog, PaymentConfirmation,
 )
 from app.modules.customers.service import customer_service
 from app.modules.webhooks.models import WebhookApiKey

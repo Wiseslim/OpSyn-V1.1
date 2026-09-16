@@ -51,11 +51,9 @@ async def handle_smartolt_event(
     """
     # ── Imports (deferred to avoid circular) ────────────────
     from app.modules.all_modules import OutageIncident
-    from app.modules.tasks.models import Task
     from app.modules.activity.service import timeline_writer
     from app.modules.notifications.service import notification_service
-    from app.modules.staff.models import StaffProfile, User
-    from app.modules.organisation.models import Region
+    from app.modules.staff.models import User
 
     # ── Step 1: event type guard ─────────────────────────────
     event_type = payload.get("event_type", "alarm")

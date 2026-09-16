@@ -18,9 +18,11 @@ from app.modules.staff.schemas import CreateStaffRequest, UpdateStaffRequest
 from app.modules.roles.models import Role
 from app.modules.organisation.models import Department
 from app.core.security import hash_password, create_invite_token
-from app.core.constants import DEFAULT_STAFF_CODE_PREFIX
 from app.modules.audit.service import audit_service
 from app.events.bus import event_bus
+
+import logging
+log = logging.getLogger("opsyn.staff")
 
 
 def _serialize_user(user: User) -> dict:
@@ -160,7 +162,9 @@ class StaffService:
                 tenant_id=caller.tenant_id,
             )
         except Exception:
-            pass
+            # Audit writes are a security control -- never fail the request
+            # over one, but never lose it silently either.
+            log.exception("audit_log_write_failed")
 
         await event_bus.emit("staff.created", {
             "user_id":      str(user.id), "email": user.email,
@@ -302,7 +306,9 @@ class StaffService:
                     tenant_id=caller.tenant_id,
                 )
             except Exception:
-                pass
+                # Audit writes are a security control -- never fail the request
+                # over one, but never lose it silently either.
+                log.exception("audit_log_write_failed")
 
         await db.flush()
         await db.commit()
@@ -325,7 +331,9 @@ class StaffService:
                                      user.id, after_state={"status": new_status},
                                      tenant_id=caller.tenant_id)
         except Exception:
-            pass
+            # Audit writes are a security control -- never fail the request
+            # over one, but never lose it silently either.
+            log.exception("audit_log_write_failed")
         await db.flush()
         user = await self._load_user(db, user_id)
         return _serialize_user(user)
@@ -351,7 +359,9 @@ class StaffService:
                 tenant_id=caller.tenant_id,
             )
         except Exception:
-            pass
+            # Audit writes are a security control -- never fail the request
+            # over one, but never lose it silently either.
+            log.exception("audit_log_write_failed")
 
         await db.flush()
         return {"id": str(user_id), "deleted": True}

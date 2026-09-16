@@ -40,7 +40,7 @@ def _validate_single(
             return f"Must be at most {rules['max_length']} characters."
         if "regex" in rules:
             if not re.fullmatch(rules["regex"], str_val):
-                return f"Value does not match required pattern."
+                return "Value does not match required pattern."
 
     elif field_type == "email":
         if "max_length" in rules and len(str_val) > rules["max_length"]:

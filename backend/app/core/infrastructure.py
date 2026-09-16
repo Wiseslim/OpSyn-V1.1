@@ -57,6 +57,9 @@ class TimingMiddleware(BaseHTTPMiddleware):
                 structlog.get_logger().warning("slow_request",
                     path=request.url.path, method=request.method, duration_ms=round(ms, 2))
             except Exception:
+                # Intentionally silent: this block *is* the logger. Logging a
+                # logging failure would recurse, and telemetry must never break
+                # request handling.
                 pass
         return resp
 
@@ -79,6 +82,9 @@ class AuditMiddleware(BaseHTTPMiddleware):
                     method=request.method, path=request.url.path,
                     status=resp.status_code)
             except Exception:
+                # Intentionally silent: this block *is* the logger. Logging a
+                # logging failure would recurse, and telemetry must never break
+                # request handling.
                 pass
         return resp
 
@@ -130,6 +136,7 @@ def register_exception_handlers(app: FA):
             structlog.get_logger().error("unhandled_exception",
                 error=str(exc), path=str(request.url))
         except Exception:
+            # Intentionally silent: this block *is* the logger. See note above.
             pass
         return JSONResponse(status_code=500, content={"success": False, "detail": "Internal server error."})
 

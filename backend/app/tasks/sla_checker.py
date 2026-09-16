@@ -36,8 +36,6 @@ async def _check_all() -> None:
     from app.tasks._db import make_task_session
     from app.modules.activity.service import timeline_writer
     from app.modules.notifications.service import notification_service
-    from app.modules.staff.models import User
-    from app.modules.roles.models import Role
     from sqlalchemy import select
     from app.core.context import tenant_id_ctx
 

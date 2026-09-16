@@ -5,7 +5,6 @@
 
 import uuid
 import datetime
-import json
 import csv
 import io
 from typing import Optional, Any
@@ -15,10 +14,8 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
 
 from app.core.database import Base, get_db
-from app.dependencies.auth import get_current_user
 from app.dependencies.permissions import check_permission
 from app.modules.staff.models import User
 

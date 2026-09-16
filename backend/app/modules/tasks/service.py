@@ -9,15 +9,14 @@ from __future__ import annotations
 import uuid, datetime, re
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, cast, Integer, or_
+from sqlalchemy import select, func, cast, Integer
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException
 
 from app.modules.tasks.models import (
-    Task, TaskComment, TaskTag, TaskAuditEntry,
-    TaskAssignmentLog, TaskRejectionLog, TaskDeptRouting,
+    Task, TaskComment, TaskTag, TaskAssignmentLog, TaskRejectionLog, TaskDeptRouting,
     TaskCompletionApproval, ArchiveReference,
-    STATUS_TO_PIPELINE_STAGE, TASK_STATES,
+    STATUS_TO_PIPELINE_STAGE,
 )
 from app.modules.staff.models import User, StaffProfile
 from app.modules.organisation.models import Department

@@ -9,7 +9,7 @@ from __future__ import annotations
 import uuid, datetime, csv, io
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, text, String, Text, Boolean, Integer, ForeignKey, Date, DateTime, cast
+from sqlalchemy import select, func, text, String, Text, Boolean, Integer, ForeignKey, DateTime, cast
 from sqlalchemy.dialects.postgresql import JSONB as PgJSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from fastapi import APIRouter, Depends, Query, Path, HTTPException, Request
@@ -289,7 +289,6 @@ async def get_outage_detail(iid: uuid.UUID = Path(...), db: AsyncSession = Depen
     inc = (await db.execute(select(OutageIncident).where(OutageIncident.id == iid))).scalar_one_or_none()
     if not inc: raise HTTPException(404, "Incident not found.")
     # Load timeline
-    from app.modules.activity.service import timeline_writer
     timeline_rows = (await db.execute(
         text("SELECT id, event_type, actor_id, body, meta, created_at FROM activity_timeline WHERE entity_type='outage' AND entity_id=:eid ORDER BY created_at ASC"),
         {"eid": str(iid)},
@@ -881,7 +880,6 @@ async def get_summary(
     db: AsyncSession = Depends(get_db),
     caller: User = Depends(check_permission("reports.view")),
 ):
-    from sqlalchemy.dialects.postgresql import TIMESTAMP as PG_TS
 
     # Parse date window
     dt_from = datetime.datetime.fromisoformat(date_from) if date_from else None
@@ -1324,7 +1322,6 @@ async def get_shifts_report(
     caller: User         = Depends(check_permission("reports.view")),
 ):
     """Shift coverage, oncall load per staff, and swap request stats."""
-    from app.modules.shifts.models import Shift, ShiftAssignment, ShiftSwapRequest
 
     coverage = (await db.execute(
         text("""

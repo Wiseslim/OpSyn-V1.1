@@ -21,7 +21,7 @@ from app.core.context import tenant_id_ctx
 from app.dependencies.auth import get_current_user
 from app.dependencies.permissions import check_permission
 from app.modules.staff.models import User
-from app.modules.organisation.models import Department, Team, Region
+from app.modules.organisation.models import Department, Region
 from app.modules.projects.models import PipelineTemplate, PipelineTemplateStage
 from app.modules.tenants.models import Tenant
 

@@ -10,8 +10,6 @@
 from __future__ import annotations
 
 import asyncio
-import datetime
-import json
 import uuid
 import structlog
 
@@ -35,7 +33,7 @@ def send_outage_notifications(self, outage_id: str, tenant_id: str) -> None:
 async def _send_notifications(outage_id: str, tenant_id: str) -> None:
     from app.tasks._db import make_task_session
     from app.modules.all_modules import OutageIncident
-    from app.modules.shifts.models import OutageNotificationRule, OutageNotificationLog
+    from app.modules.shifts.models import OutageNotificationRule
     from sqlalchemy import select
 
     engine, db = await make_task_session()

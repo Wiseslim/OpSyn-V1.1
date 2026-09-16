@@ -51,12 +51,10 @@ async def validate_deletion_file(
 
     Returns DeletionValidationResult with the list of parsed key dicts.
     """
-    errors: list[str] = []
-
     if not filename.lower().endswith(".xlsx"):
         return DeletionValidationResult(
             valid=False, asset_type=asset_type, total_rows=0,
-            errors=[f"Invalid file type — only .xlsx files are accepted"],
+            errors=["Invalid file type — only .xlsx files are accepted"],
         )
 
     if len(file_bytes) == 0:
@@ -268,7 +266,7 @@ async def execute_deletion(
 
     deleted_count = 0
     try:
-        async with await db.begin_nested() as savepoint:  # type: ignore[attr-defined]
+        async with await db.begin_nested():  # type: ignore[attr-defined]
             for asset_id in matched_ids:
                 asset_obj = await db.get(orm_cls, asset_id)
                 if asset_obj is None or asset_obj.is_deleted:

@@ -46,7 +46,6 @@ from app.core.database import get_db
 from app.dependencies.auth import get_current_user
 from app.dependencies.permissions import check_permission
 from app.modules.form_builder.models import (
-    FIELD_TYPES,
     MODULES,
     SCHEMA_STATUSES,
     WIDTH_VALUES,

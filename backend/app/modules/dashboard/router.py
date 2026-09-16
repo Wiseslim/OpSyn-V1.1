@@ -11,7 +11,7 @@ from sqlalchemy import select, func, text
 
 from app.core.database import get_db
 from app.dependencies.auth import get_current_user
-from app.modules.staff.models import User, StaffProfile
+from app.modules.staff.models import User
 
 router = APIRouter()
 
@@ -43,7 +43,6 @@ async def dashboard_summary(
 
     # ── Tasks ────────────────────────────────────────────────
     from app.modules.tasks.router import Task
-    from sqlalchemy import and_, or_
     import datetime
 
     now   = datetime.datetime.utcnow()

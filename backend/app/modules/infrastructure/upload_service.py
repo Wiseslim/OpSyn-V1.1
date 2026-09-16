@@ -696,7 +696,7 @@ async def commit_session(
     asset_type = session_obj.asset_type
 
     try:
-        async with await db.begin_nested() as savepoint:  # type: ignore[attr-defined]
+        async with await db.begin_nested():  # type: ignore[attr-defined]
             for staging_row in rows_to_commit:
                 orm_obj = _build_orm_instance(
                     asset_type, staging_row.row_data,

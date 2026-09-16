@@ -6,7 +6,7 @@ from __future__ import annotations
 import uuid, datetime
 from typing import Any
 
-from sqlalchemy import String, Boolean, Integer, Float, DateTime, ForeignKey, text
+from sqlalchemy import String, Boolean, Integer, Float, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 

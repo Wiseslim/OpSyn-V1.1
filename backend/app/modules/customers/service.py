@@ -15,13 +15,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.modules.customers.models import (
-    Customer, CustomerFieldValue, CustomerFormSubmission,
-    CustomerAuditLog, PaymentRequest, ExternalTaskLog,
-    FieldDefinition, FieldVisibilityRule,
+    Customer, CustomerFieldValue, CustomerAuditLog, PaymentRequest, FieldDefinition,
 )
 from app.modules.customers.field_validator import validate_field_values
 from app.modules.projects.models import Project, ProjectPipelineStage, PipelineTemplate, PipelineTemplateStage
 from app.modules.staff.models import User
+
+import logging
+log = logging.getLogger("opsyn.customers")
 
 
 def _actor_label(user: Optional[User]) -> str:
@@ -60,7 +61,9 @@ async def _generate_payment_link(
             if base_url:
                 return f"{base_url.rstrip('/')}/{payment_request_id}"
     except Exception:
-        pass
+        # Falling through silently would change the payment URL the
+        # customer is sent to, so record why the lookup failed.
+        log.warning("payment_base_url_lookup_failed", exc_info=True)
 
     # Internal fallback
     return f"https://pay.opsyn.internal/pending/{payment_request_id}"
@@ -406,7 +409,6 @@ class CustomerService:
         customer.updated_at = datetime.datetime.utcnow()
 
         # Create project pipeline entry
-        from app.modules.projects.models import Project
         from app.modules.projects.auto_generator import _generate_project_ticket_number
 
         ticket = await _generate_project_ticket_number(db)

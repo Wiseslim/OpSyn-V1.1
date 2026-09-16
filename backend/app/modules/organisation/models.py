@@ -5,9 +5,8 @@
 from __future__ import annotations
 import uuid
 import datetime
-from typing import Optional, List
+from typing import List
 from sqlalchemy import String, Text, Boolean, Integer, ForeignKey, DateTime
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base

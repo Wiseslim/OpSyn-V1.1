@@ -13,7 +13,7 @@ from __future__ import annotations
 import uuid
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response, JSONResponse
+from starlette.responses import Response
 
 from app.core.context import tenant_id_ctx
 from app.core.security import verify_access_token

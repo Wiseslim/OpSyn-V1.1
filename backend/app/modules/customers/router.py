@@ -20,19 +20,16 @@ import uuid
 from datetime import datetime, date
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.dependencies.auth import get_current_user
-from app.dependencies.permissions import check_permission
 from app.modules.customers.models import (
-    Customer, CustomerFieldValue, CustomerAuditLog,
-    PaymentRequest, FieldDefinition,
+    Customer, PaymentRequest,
 )
 from app.modules.customers.service import customer_service
 from app.modules.projects.models import Project

@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 import uuid, datetime, re
-from typing import Optional, Any
+from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, cast, Integer, Float, or_
 from sqlalchemy.orm import selectinload
@@ -32,17 +32,16 @@ from app.modules.activity.service import timeline_writer
 from app.modules.tasks.models import (
     Task, TaskComment, TaskTag, TaskDependency, TaskAuditEntry,
     TaskAssignmentLog, TaskRejectionLog, TaskDeptRouting,
-    TaskCompletionApproval, ArchiveReference,
+    ArchiveReference,
     TASK_STATES, PIPELINE_FLOW, ALLOWED_TRANSITIONS, TRANSITION_ROLE_REQUIREMENTS,
-    TERMINAL_STATES, COMMENT_TYPES, APPROVAL_KEYWORDS, REJECTION_KEYWORDS,
-    BLOCKER_KEYWORDS, TRIGGER_TYPES,
-    STATUS_TO_PIPELINE_STAGE, PIPELINE_STAGES, SOURCE_APPS,
+    COMMENT_TYPES, APPROVAL_KEYWORDS, REJECTION_KEYWORDS,
+    SOURCE_APPS,
 )
 from app.modules.tasks.service import (
     task_workflow_service,
     _parse_mentions, _parse_archive_refs,
     _get_user_by_username, _get_task_by_ticket,
-    _notify, _notify_department, _log_audit_event,
+    _notify,
 )
 
 
@@ -548,7 +547,7 @@ class TaskService:
             if not parent or str(parent.task_id) != str(task_id):
                 raise HTTPException(status_code=422, detail="Parent comment not found on this task.")
 
-        task = await self._get_or_404(db, task_id)
+        await self._get_or_404(db, task_id)   # 404 guard
 
         all_mentions = list(set(mentions + _extract_mentions(body)))
 
@@ -709,7 +708,7 @@ class TaskService:
             raise HTTPException(status_code=422, detail="A task cannot depend on itself.")
         if await self._would_create_cycle(db, task_id, depends_on_task_id):
             raise HTTPException(status_code=422, detail="Adding this dependency would create a circular dependency.")
-        dep = await self._add_dependency_safe(db, task_id, depends_on_task_id)
+        await self._add_dependency_safe(db, task_id, depends_on_task_id)
         await db.flush()
         await self._create_system_comment(
             db, task_id,

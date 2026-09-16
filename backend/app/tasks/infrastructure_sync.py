@@ -10,7 +10,7 @@ from datetime import datetime as _dt, timezone as _tz
 
 import httpx
 from celery import shared_task
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.modules.smartolt.models import SmartOLTConfig, SmartOLTOltMap

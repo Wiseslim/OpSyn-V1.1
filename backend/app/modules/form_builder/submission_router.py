@@ -52,7 +52,6 @@ from app.modules.form_builder.models import (
     FormSchema,
     FormSchemaVersion,
     FormSubmission,
-    FieldDefinition,
 )
 from app.modules.form_builder.validation_engine import (
     ValidationContext,
