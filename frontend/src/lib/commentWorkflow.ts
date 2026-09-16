@@ -7,7 +7,7 @@
 import type {
   TaskComment,
   CommentType,
-} from '../../../shared-types/index';
+} from '../../shared-types/index';
 
 // ── Unresolved action check ───────────────────────────────────
 

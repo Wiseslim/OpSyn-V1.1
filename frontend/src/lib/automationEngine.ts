@@ -12,7 +12,7 @@ import type {
   AutomationCondition,
   AutomationTrigger,
   AutomationAction,
-} from '../../../shared-types/index';
+} from '../../shared-types/index';
 
 // ── Engine context ───────────────────────────────────────────
 

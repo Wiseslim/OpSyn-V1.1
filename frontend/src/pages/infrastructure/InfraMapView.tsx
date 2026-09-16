@@ -37,7 +37,7 @@ import type {
   InfraMapOLT,
   InfraMapSplitter,
   InfraUtilisationPoint,
-} from '../../../../shared-types/index';
+} from '../../../shared-types/index';
 
 // ── colour helpers ────────────────────────────────────────────
 

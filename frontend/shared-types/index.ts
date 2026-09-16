@@ -567,3 +567,329 @@ export interface ReportSummary {
   monthly_staff_changes: { month: string; added: number; departed: number }[];
   monthly_mttr: { month: string; hours: number }[];
 }
+
+
+// ============================================================
+// MERGED FROM THE FORMER ROOT shared-types/index.ts
+//
+// The repository previously carried two divergent copies of this
+// contract. The root copy was orphaned -- nothing imported it --
+// but it held the only definitions for the Infrastructure, Shift,
+// SmartOLT, Automation and Pipeline types below. They are merged
+// here verbatim; no pre-existing definition in this file was
+// changed. The root copy has been deleted.
+// ============================================================
+
+export type TaskTriggerType = 'manual' | 'automation' | 'comment' | 'system' | 'dependency';
+
+// ── Pipelines & Stages ─────────────────────────────────────────
+export interface Pipeline {
+  id: string;
+  name: string;
+  description?: string;
+  stages: Stage[];
+  department_id?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Stage {
+  id: string;
+  pipeline_id: string;
+  name: string;
+  order: number;
+  allowed_statuses: TaskStatus[];
+  is_terminal: boolean;
+  is_entry: boolean;
+  created_at: string;
+}
+
+// ── Task Dependency & Summary ──────────────────────────────────
+export interface TaskSummary {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  assignee?: StaffProfileSummary;
+}
+
+// ── Automation ────────────────────────────────────────────────
+export type AutomationTrigger =
+  | 'status_changed'
+  | 'deadline_passed'
+  | 'dependency_completed'
+  | 'comment_added'
+  | 'sla_breached';
+
+export type AutomationAction =
+  | 'move_to_status'
+  | 'move_to_pipeline'
+  | 'move_to_stage'
+  | 'assign_user'
+  | 'notify_user'
+  | 'add_system_comment';
+
+export interface AutomationCondition {
+  field: string;
+  operator: 'eq' | 'neq' | 'lt' | 'gt' | 'contains' | 'is_empty';
+  value: unknown;
+}
+
+export interface AutomationRule {
+  id: string;
+  name: string;
+  description?: string;
+  pipeline_id?: string;
+  trigger: AutomationTrigger;
+  conditions: AutomationCondition[];
+  action: AutomationAction;
+  action_params: Record<string, unknown>;
+  is_active: boolean;
+  created_at: string;
+}
+
+// ── Task Audit ────────────────────────────────────────────────
+export interface TaskAuditEntry {
+  id: string;
+  task_id: string;
+  actor?: StaffProfileSummary;
+  from_status?: TaskStatus;
+  to_status?: TaskStatus;
+  from_pipeline_id?: string;
+  to_pipeline_id?: string;
+  from_stage_id?: string;
+  to_stage_id?: string;
+  trigger_type: TaskTriggerType;
+  comment_id?: string;
+  note?: string;
+  created_at: string;
+}
+
+export interface OutageTimelineEntry {
+  id: string;
+  event_type: string;
+  actor_id?: string;
+  body: string;
+  meta?: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface SmartOLTConfig {
+  id: string;
+  api_url: string;
+  polling_enabled: boolean;
+  polling_interval_secs: number;
+  severity_thresholds?: { warning: number; high: number; critical: number };
+  has_api_key: boolean;
+  has_webhook_secret: boolean;
+  updated_at?: string;
+}
+
+export interface SmartOLTOltMap {
+  id: string;
+  smartolt_olt_id: string;
+  olt_name?: string;
+  region_id?: string;
+  latitude?: number;
+  longitude?: number;
+  is_active: boolean;
+  last_synced_at?: string;
+}
+
+// ── Infrastructure (S4.1) ──────────────────────────────────────
+export interface InfraPort {
+  id: string;
+  node_id: string;
+  port_number: string;
+  port_type: string;
+  total_capacity: number;
+  used_capacity: number;
+  utilisation_pct: number;
+  status: 'active' | 'down' | string;
+  last_synced_at?: string;
+  created_at: string;
+}
+
+export interface InfraSubscriber {
+  id: string;
+  customer_id: string;
+  site_id?: string;
+  node_id?: string;
+  port_id?: string;
+  service_type: string;
+  status: 'active' | 'suspended' | 'churned' | string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface InfraCapacityAlert {
+  id: string;
+  site_id?: string;
+  node_id?: string;
+  alert_type: string;
+  severity: 'critical' | 'high' | 'warning' | 'low';
+  threshold_pct: number;
+  current_pct: number;
+  message?: string;
+  is_resolved: boolean;
+  resolved_at?: string;
+  linked_task_id?: string;
+  created_at: string;
+}
+
+export interface InfraMonitoringConfig {
+  id: string;
+  entity_type: string;
+  entity_id: string;
+  warn_threshold_pct: number;
+  critical_threshold_pct: number;
+  check_interval_minutes: number;
+  alert_channels: string[];
+  assigned_role_level: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InfraAlertRule {
+  id: string;
+  name: string;
+  condition_field: string;
+  operator: 'gt' | 'lt' | 'gte' | 'lte' | 'eq';
+  threshold_value: number;
+  severity: 'critical' | 'high' | 'warning' | 'low';
+  action_type: 'notify' | 'create_task' | 'email' | string;
+  action_params: Record<string, unknown>;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface InfraMapSite {
+  id: string;
+  name: string;
+  site_type: string;
+  latitude?: number;
+  longitude?: number;
+  status: string;
+  region_id?: string;
+  is_monitored: boolean;
+  has_alert: boolean;
+}
+
+export interface InfraMapNode {
+  id: string;
+  name: string;
+  node_type: string;
+  site_id?: string;
+  ip_address?: string;
+  status: string;
+  utilisation: { used: number; total: number; pct: number };
+  has_alert: boolean;
+}
+
+export interface InfraMapRoute {
+  id: string;
+  from_node_id: string;
+  to_node_id: string;
+  cable_type?: string;
+  status: string;
+  length_km?: number;
+  capacity_gbps?: number;
+}
+
+export interface InfraMapCabinet {
+  id: string;
+  cabinet_id: string;
+  latitude: number;
+  longitude: number;
+  capacity: number;
+  number_tray?: number;
+}
+
+export interface InfraMapOLT {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  location_description?: string;
+  number_of_odf?: number;
+}
+
+export interface InfraMapSplitter {
+  id: string;
+  box_id: string;
+  latitude: number;
+  longitude: number;
+  splitter_level: string;
+  splitter_type: string;
+  input_ports: number;
+  output_ports: number;
+  number_customer?: number;
+}
+
+export interface InfraMapData {
+  sites: InfraMapSite[];
+  nodes: InfraMapNode[];
+  routes: InfraMapRoute[];
+  cabinets: InfraMapCabinet[];
+  olts: InfraMapOLT[];
+  splitters: InfraMapSplitter[];
+}
+
+export interface InfraUtilisationPoint {
+  site_id: string;
+  name: string;
+  latitude?: number;
+  longitude?: number;
+  used: number;
+  total: number;
+  utilisation_pct: number;
+}
+
+// ── Shifts ─────────────────────────────────────────────────────
+export interface Shift {
+  id: string;
+  name: string;
+  shift_type: 'day' | 'night' | 'oncall' | string;
+  start_time: string;
+  end_time: string;
+  color: string;
+  created_at?: string;
+}
+
+export interface ShiftAssignment {
+  id: string;
+  shift_id: string;
+  user_id: string;
+  date: string;
+  status: 'scheduled' | 'confirmed' | 'cancelled' | 'swapped';
+  notes?: string;
+  shift?: Shift;
+  user?: { id: string; name: string; email: string };
+  created_at?: string;
+}
+
+export interface ShiftSwapRequest {
+  id: string;
+  from_assignment_id: string;
+  to_user_id: string;
+  reason?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  responded_by?: string;
+  responded_at?: string;
+  created_at?: string;
+}
+
+// ── Outage Notification Rules ──────────────────────────────────
+export interface OutageNotificationRule {
+  id: string;
+  name: string;
+  min_severity: 'critical' | 'high' | 'warning' | 'low';
+  min_subscribers: number;
+  channels: ('sms' | 'email' | 'whatsapp')[];
+  message_template?: string;
+  is_auto: boolean;
+  is_active: boolean;
+  created_at?: string;
+}
