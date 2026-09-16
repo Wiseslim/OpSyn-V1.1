@@ -1,0 +1,76 @@
+/* ============================================================
+   OPSYN UX MODERNIZATION — DESIGN TOKENS  (Stage 1)
+   Single source of truth for all visual decisions.
+   All components reference ONLY these variables — no hardcoded hex.
+   Powered by SlimTech · May 2026
+   ============================================================ */
+
+:root {
+
+  /* ── Color System ─────────────────────────────────────────── */
+
+  /* Shell & surface backgrounds */
+  --color-navy:         #0D1B2A;  /* AppShell bg, topbar, primary rail         */
+  --color-navy-light:   #1E293B;  /* Flyout drawer bg, card surfaces            */
+
+  /* Primary accent */
+  --color-teal:         #00C2A8;  /* Active states, CTAs, IntelStrip highlights */
+  --color-teal-dim:     #00897B;  /* Hover state on teal elements               */
+
+  /* Status / severity */
+  --color-amber:        #F59E0B;  /* Warning badges, SLA 80% elapsed, overdue   */
+  --color-red:          #DC2626;  /* Critical outage, SLA breach, CRITICAL chip  */
+  --color-red-pulse:    #EF4444;  /* Pulsing keyframe colour for live incidents  */
+  --color-indigo:       #4F46E5;  /* Pipeline stage markers, project badges      */
+  --color-green:        #16A34A;  /* Resolved state, efficiency ≥85%, on-time    */
+
+  /* Content surfaces */
+  --color-surface:      #F8FAFC;  /* Main content area background                */
+  --color-surface-2:    #F1F5F9;  /* Card/panel bg, alternating table rows        */
+  --color-border:       #E2E8F0;  /* All dividers, table borders, card outlines   */
+
+  /* Text */
+  --color-text-primary: #0D1B2A;  /* Headings, high-emphasis text               */
+  --color-text-muted:   #64748B;  /* Labels, meta text, timestamps              */
+
+  /* ── Typography ───────────────────────────────────────────── */
+  --font-display: 'DM Sans',        sans-serif;  /* Headings, nav labels, badge text */
+  --font-body:    'Inter',          sans-serif;  /* Body copy, table content, inputs */
+  --font-mono:    'JetBrains Mono', monospace;  /* Ticket numbers, code, CLI output  */
+
+  /* ── Layout Dimensions ────────────────────────────────────── */
+  --rail-width:        64px;   /* Primary icon rail (collapsed)    */
+  --drawer-width:      260px;  /* Flyout drawer                    */
+  --topbar-height:     56px;   /* Fixed topbar                     */
+  --intelstrip-height: 40px;   /* IntelStrip live KPI bar          */
+
+  /* ── Motion ───────────────────────────────────────────────── */
+  --transition-nav: cubic-bezier(0.4, 0, 0.2, 1) 200ms;  /* Flyout open/close  */
+
+  /* ── Elevation ────────────────────────────────────────────── */
+  --shadow-panel: 0 4px 24px rgba(0, 0, 0, 0.18);  /* Flyout drawer, modals */
+
+  /* ── Radius ───────────────────────────────────────────────── */
+  --radius-card:  10px;  /* Cards, modals, drawer    */
+  --radius-badge:  4px;  /* Status badges, ticket chips */
+
+  /* ── Legacy token aliases (backward-compat for pre-Stage-5 components) ── */
+  --chalk:  var(--color-text-primary);
+  --chalk2: var(--color-text-primary);
+  --chalk3: var(--color-text-muted);
+  --bg:     var(--color-surface-2);
+  --bg2:    #FFFFFF;
+  --bg3:    var(--color-surface-2);
+  --bg5:    rgba(100, 116, 139, 0.25);
+  --wire:   var(--color-border);
+  --wire2:  var(--color-border);
+  --wire4:  var(--color-border);
+  --rose:   var(--color-red);
+  --cyan:   var(--color-teal);
+  --violet: var(--color-indigo);
+  --green:  var(--color-green);
+  --amber:  var(--color-amber);
+  --brand:  var(--color-teal);
+  --mono:   var(--font-mono);
+  --font:   var(--font-body);
+}
