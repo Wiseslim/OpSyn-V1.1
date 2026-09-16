@@ -4,7 +4,7 @@
 // Public route: /activate?token=<JWT>
 // ============================================================
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth.store';
 import { authApi } from '../../api/index';
@@ -21,11 +21,8 @@ export default function ActivatePage() {
   const [confirm,    setConfirm]   = useState('');
   const [loading,    setLoading]   = useState(false);
   const [error,      setError]     = useState('');
-  const [tokenError, setTokenError] = useState(!token);
-
-  useEffect(() => {
-    if (!token) setTokenError(true);
-  }, [token]);
+  // Derived, not state: it is a function of `token` and nothing else.
+  const tokenError = !token;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

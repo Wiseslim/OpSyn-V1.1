@@ -10,7 +10,7 @@
 // project pipeline, infrastructure, etc.) via Phase 8.
 // ============================================================
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   formBuilderApi,
@@ -713,10 +713,14 @@ export default function FormRenderer({
   const fields = configQ.data?.fields ?? [];
   const schema = configQ.data?.schema ?? null;
 
-  // Re-seed values when initialData changes (e.g. parent hands a new draft)
-  useEffect(() => {
-    if (initialData && !viewMode) setValues(initialData);
-  }, []);
+  // NOTE: there used to be an effect here that re-set `values` from
+  // `initialData`. Its dependency array was empty, so it only ever ran on
+  // mount -- re-applying the value useState had already seeded on the line
+  // above. It never did what its comment claimed. Giving it real
+  // dependencies would reset the form every time the parent re-rendered
+  // with a fresh object literal, throwing away in-progress user input, so
+  // it is removed rather than "fixed". Remount with a key if a genuine
+  // re-seed is ever needed.
 
   const applyServerErrors = useCallback((
     errors:   ValidationError[],

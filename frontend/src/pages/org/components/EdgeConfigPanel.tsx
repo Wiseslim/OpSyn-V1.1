@@ -48,6 +48,10 @@ export function EdgeConfigPanel({ workflowId, edge, onClose }: EdgeConfigPanelPr
   });
 
   useEffect(() => {
+    // Re-seeds the form when a different edge is selected. Depending on
+    // // edge.id alone is deliberate: depending on the individual fields would
+    // // overwrite the user's edits on every parent re-render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setForm({
       label: edge.label ?? '',
       isParallel: edge.isParallel,
@@ -57,6 +61,10 @@ export function EdgeConfigPanel({ workflowId, edge, onClose }: EdgeConfigPanelPr
       expectedDays: edge.expectedDays ?? '',
       edgeOrder: edge.edgeOrder,
     });
+  // Re-seeds the form when a different edge is selected. Depending on
+  // // edge.id alone is deliberate: depending on the individual fields would
+  // // overwrite the user's edits on every parent re-render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edge.id]);
 
   const saving = updateEdge.isPending;

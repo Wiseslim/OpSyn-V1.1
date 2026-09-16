@@ -119,7 +119,12 @@ export default function ShiftSchedulerPage() {
     },
   });
 
-  const assignments: ShiftAssignment[] = (weekData as any)?.assignments ?? [];
+  // Memoised: the `?? []` fallback allocated a new array every render,
+  // which invalidated the useMemo below it on every pass.
+  const assignments: ShiftAssignment[] = useMemo(
+    () => (weekData as any)?.assignments ?? [],
+    [weekData],
+  );
   const shifts: Shift[]                = Array.isArray(shiftsData) ? shiftsData : [];
   const staff: any[]                   = (staffData as any)?.items ?? (Array.isArray(staffData) ? staffData : []);
 

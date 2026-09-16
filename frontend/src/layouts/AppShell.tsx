@@ -95,6 +95,10 @@ export default function AppShell() {
 
   // Close drawer when route changes
   useEffect(() => {
+    // Responding to navigation, not deriving state from props: the drawer
+    // // closes when the route changes. activeCategory is also driven by the hover
+    // // timers above, so it cannot be derived from pathname alone.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setActiveCategory(null);
   }, [pathname]);
 

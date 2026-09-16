@@ -562,6 +562,9 @@ export default function TaskDetailModal({ task, onClose }: Props) {
   const perms                 = usePermissions();
 
   useEffect(() => {
+    // localStatus is optimistic: it moves ahead of the server during a
+    // // transition and re-syncs when the task prop catches up.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (task?.status) setLocalStatus(task.status);
   }, [task?.status]);
 

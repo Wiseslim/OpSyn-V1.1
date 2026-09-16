@@ -826,6 +826,9 @@ function FieldConfigDrawer({
 
   useEffect(() => {
     if (field) {
+      // Re-seed only when the selection changes, so in-progress edits survive
+      // // parent re-renders.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDraft({
         label:            field.label,
         placeholder:      field.placeholder ?? '',
@@ -840,6 +843,9 @@ function FieldConfigDrawer({
       });
       setOption('');
     }
+  // Re-seed only when the selection changes, so in-progress edits survive
+  // // parent re-renders.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [field?.id]);
 
   if (!field) {
@@ -1500,7 +1506,13 @@ export default function FormBuilderNewPage() {
   });
 
   useEffect(() => {
+    // Re-seed only when the selection changes, so in-progress edits survive
+    // // parent re-renders.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (paramId && paramId !== selectedId) setSelectedId(paramId);
+  // Re-seed only when the selection changes, so in-progress edits survive
+  // // parent re-renders.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paramId]);
 
   // Auto-populate machine_name when name changes (unless manually edited)

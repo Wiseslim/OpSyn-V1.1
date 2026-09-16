@@ -136,6 +136,9 @@ export default function NewTaskModal({ open, onClose, initialScope }: Props) {
   // Reset when modal opens
   useEffect(() => {
     if (open) {
+      // Reset-on-open. Keyed on `open` deliberately -- depending on the form
+      // // values would wipe the user's input as they type.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStep(initialScope ? 'form' : 'scope');
       setScope(initialScope ?? 'internal');
       setIForm({ ...EMPTY_INTERNAL });
