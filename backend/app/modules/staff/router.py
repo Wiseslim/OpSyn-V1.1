@@ -61,9 +61,16 @@ async def check_email(
 async def check_username(
     username: str,
     db:       AsyncSession = Depends(get_db),
-    _:        User         = Depends(get_current_user),
+    caller:   User         = Depends(get_current_user),
 ):
-    exists = (await db.execute(select(User.id).where(User.username == username))).first()
+    # Scoped to the caller's tenant: usernames are unique per tenant
+    # (migration 0084), and a global probe would disclose usernames
+    # belonging to other organisations.
+    exists = (await db.execute(
+        select(User.id).where(
+            User.username == username, User.tenant_id == caller.tenant_id
+        )
+    )).first()
     return {"success": True, "data": {"available": not exists}}
 
 

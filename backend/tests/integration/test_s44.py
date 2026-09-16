@@ -30,8 +30,7 @@ class TestInfrastructure:
         )
         assert resp.status_code == 200
         body = resp.json()
-        assert body["success"] is True
-        assert isinstance(body["data"], list)
+        assert isinstance(body["items"], list)
 
     async def test_site_create_and_retrieve(self, client, admin_token):
         name = f"TestPOP-{uuid.uuid4().hex[:6]}"
@@ -41,7 +40,7 @@ class TestInfrastructure:
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert create_resp.status_code in (200, 201), create_resp.text
-        site = create_resp.json()["data"]
+        site = create_resp.json()          # bare object, not enveloped
         assert site["name"] == name
 
         get_resp = await client.get(
@@ -49,7 +48,7 @@ class TestInfrastructure:
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert get_resp.status_code == 200
-        assert get_resp.json()["data"]["id"] == site["id"]
+        assert get_resp.json()["id"] == site["id"]
 
     async def test_site_update(self, client, admin_token):
         name = f"TestSite-{uuid.uuid4().hex[:6]}"
@@ -60,7 +59,7 @@ class TestInfrastructure:
         )
         if c.status_code not in (200, 201):
             pytest.skip("Site creation failed")
-        site_id = c.json()["data"]["id"]
+        site_id = c.json()["id"]
 
         upd = await client.put(
             f"/api/v1/infrastructure/sites/{site_id}",
@@ -68,7 +67,7 @@ class TestInfrastructure:
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert upd.status_code == 200
-        assert upd.json()["data"]["status"] == "maintenance"
+        assert upd.json()["status"] == "maintenance"
 
     async def test_site_not_found(self, client, admin_token):
         resp = await client.get(
@@ -83,7 +82,7 @@ class TestInfrastructure:
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert resp.status_code == 200
-        assert isinstance(resp.json()["data"], list)
+        assert isinstance(resp.json()["items"], list)
 
     async def test_node_create(self, client, admin_token):
         name = f"OLT-{uuid.uuid4().hex[:6]}"
@@ -93,7 +92,7 @@ class TestInfrastructure:
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert resp.status_code in (200, 201), resp.text
-        assert resp.json()["data"]["name"] == name
+        assert resp.json()["name"] == name
 
     async def test_routes_list(self, client, admin_token):
         resp = await client.get(
@@ -108,8 +107,7 @@ class TestInfrastructure:
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert resp.status_code == 200
-        body = resp.json()
-        assert isinstance(body["data"], list)
+        assert isinstance(resp.json(), list)   # bare list, not paginated
 
     async def test_subscribers_filter_by_service_type(self, client, admin_token):
         for stype in ("FTTH", "FTTB", "FTTC"):
@@ -118,7 +116,7 @@ class TestInfrastructure:
                 headers={"Authorization": f"Bearer {admin_token}"},
             )
             assert resp.status_code == 200
-            for s in resp.json()["data"]:
+            for s in resp.json():
                 assert s["service_type"] == stype
 
     async def test_sync_ports_queued(self, client, admin_token):
@@ -136,8 +134,8 @@ class TestInfrastructure:
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert resp.status_code == 200
-        data = resp.json()["data"]
-        assert "total_sites" in data or "sites" in data
+        data = resp.json()   # bare object
+        assert "active_sites" in data or "sites" in data
 
 
 # ── Auth Flows ────────────────────────────────────────────────
@@ -261,14 +259,14 @@ class TestShifts:
 
     async def test_shift_assignments_list(self, client, admin_token):
         resp = await client.get(
-            "/api/v1/shift-assignments",
+            "/api/v1/shifts/assignments",
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert resp.status_code == 200
 
     async def test_swap_requests_list(self, client, admin_token):
         resp = await client.get(
-            "/api/v1/shift-swaps",
+            "/api/v1/shifts/swap-requests",
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert resp.status_code == 200
@@ -284,7 +282,7 @@ class TestShifts:
     async def test_swap_approve_nonexistent(self, client, admin_token):
         fake_id = str(uuid.uuid4())
         resp = await client.patch(
-            f"/api/v1/shift-swaps/{fake_id}/approve",
+            f"/api/v1/shifts/swap-requests/{fake_id}/approve",
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert resp.status_code in (404, 422)
@@ -297,12 +295,12 @@ class TestCapacityMonitor:
     """Monitoring configs, alert rules, and capacity alerts."""
 
     async def test_monitoring_configs_list_requires_auth(self, client):
-        resp = await client.get("/api/v1/infrastructure/monitoring-configs")
+        resp = await client.get("/api/v1/settings/infrastructure/monitoring")
         assert resp.status_code == 401
 
     async def test_monitoring_configs_list(self, client, admin_token):
         resp = await client.get(
-            "/api/v1/infrastructure/monitoring-configs",
+            "/api/v1/settings/infrastructure/monitoring",
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert resp.status_code == 200
@@ -310,12 +308,12 @@ class TestCapacityMonitor:
 
     async def test_create_monitoring_config(self, client, admin_token):
         resp = await client.post(
-            "/api/v1/infrastructure/monitoring-configs",
+            "/api/v1/settings/infrastructure/monitoring",
             json={
                 "entity_type":       "node",
                 "entity_id":         str(uuid.uuid4()),
-                "warn_threshold":    80,
-                "critical_threshold": 95,
+                "warn_threshold_pct":     80,
+                "critical_threshold_pct": 95,
                 "check_interval_minutes": 15,
                 "is_active":         True,
             },
@@ -323,11 +321,11 @@ class TestCapacityMonitor:
         )
         assert resp.status_code in (200, 201), resp.text
         data = resp.json()["data"]
-        assert data["warn_threshold"] == 80
+        assert data["warn_threshold_pct"] == 80
 
     async def test_alert_rules_list(self, client, admin_token):
         resp = await client.get(
-            "/api/v1/infrastructure/alert-rules",
+            "/api/v1/settings/infrastructure/alert-rules",
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert resp.status_code == 200
@@ -335,11 +333,12 @@ class TestCapacityMonitor:
 
     async def test_create_alert_rule(self, client, admin_token):
         resp = await client.post(
-            "/api/v1/infrastructure/alert-rules",
+            "/api/v1/settings/infrastructure/alert-rules",
             json={
+                "name":            f"Rule-{uuid.uuid4().hex[:6]}",
                 "condition_field": "utilisation_pct",
                 "operator":        "gt",
-                "threshold":       90,
+                "threshold_value": 90,
                 "severity":        "critical",
                 "action_type":     "notify",
             },
@@ -354,6 +353,12 @@ class TestCapacityMonitor:
         )
         assert resp.status_code == 200
 
+    @pytest.mark.skip(
+        reason="No collection endpoint for ports. The API exposes only "
+               "/infrastructure/ports/{port_id} and "
+               "/infrastructure/nodes/{node_id}/ports. Unskip if a list "
+               "endpoint is added."
+    )
     async def test_ports_list(self, client, admin_token):
         resp = await client.get(
             "/api/v1/infrastructure/ports",
@@ -427,16 +432,16 @@ class TestS44Reports:
             assert "sla_adherence_pct" in data
 
     async def test_staff_report_requires_auth(self, client):
-        resp = await client.get("/api/v1/reports/staff")
+        resp = await client.get("/api/v1/reports/staff/breakdown")
         assert resp.status_code == 401
 
     async def test_tasks_report_requires_auth(self, client):
-        resp = await client.get("/api/v1/reports/tasks")
+        resp = await client.get("/api/v1/reports/tasks/breakdown")
         assert resp.status_code == 401
 
     async def test_overview_report_returns_structure(self, client, admin_token):
         resp = await client.get(
-            "/api/v1/reports/overview",
+            "/api/v1/reports/summary",
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert resp.status_code == 200

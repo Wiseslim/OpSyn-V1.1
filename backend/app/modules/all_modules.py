@@ -1334,7 +1334,7 @@ async def get_shifts_report(
             JOIN shifts sh ON sh.id = sa.shift_id
             WHERE sh.tenant_id = :tid
               AND sa.status = 'confirmed'
-              AND sh.shift_date >= NOW() - INTERVAL '30 days'
+              AND sa.date >= (CURRENT_DATE - INTERVAL '30 days')
             GROUP BY sa.shift_id, sh.name, sh.shift_type, sh.start_time, sh.end_time
             ORDER BY assignments DESC
             LIMIT 20
@@ -1353,7 +1353,7 @@ async def get_shifts_report(
             JOIN staff_profiles sp ON sp.user_id = u.id
             WHERE sh.tenant_id = :tid
               AND sa.status = 'confirmed'
-              AND sh.shift_date >= NOW() - INTERVAL '30 days'
+              AND sa.date >= (CURRENT_DATE - INTERVAL '30 days')
             GROUP BY sp.first_name, sp.last_name
             ORDER BY oncall_shifts DESC
             LIMIT 10

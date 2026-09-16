@@ -98,7 +98,7 @@ class StaffService:
         StaffPolicy.can_create(caller, payload.department_id, target_role.level)
 
         await self._assert_email_unique(db, payload.email)
-        await self._assert_username_unique(db, payload.username)
+        await self._assert_username_unique(db, payload.username, caller.tenant_id)
         if payload.staff_code:
             await self._assert_staff_code_unique(db, payload.staff_code)
 
@@ -388,8 +388,17 @@ class StaffService:
         if (await db.execute(select(User.id).where(User.email == email))).first():
             raise HTTPException(status_code=409, detail="A user with this email already exists.")
 
-    async def _assert_username_unique(self, db: AsyncSession, username: str) -> None:
-        if (await db.execute(select(User.id).where(User.username == username))).first():
+    async def _assert_username_unique(
+        self, db: AsyncSession, username: str, tenant_id: uuid.UUID
+    ) -> None:
+        # Usernames are unique per tenant (see migration 0084), not globally.
+        # A global check would reject a name another organisation happens to
+        # use and leak the fact that it exists.
+        if (await db.execute(
+            select(User.id).where(
+                User.username == username, User.tenant_id == tenant_id
+            )
+        )).first():
             raise HTTPException(status_code=409, detail="Username is already taken.")
 
     async def _assert_staff_code_unique(self, db: AsyncSession, staff_code: str) -> None:
