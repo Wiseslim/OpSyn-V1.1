@@ -42,13 +42,13 @@ export default function StaffCreatePage() {
   const { data: depts }   = useQuery({ queryKey: ['departments'], queryFn: () => orgApi.getDepartments() });
   const { data: teams }   = useQuery({
     queryKey: ['teams', form.department_id],
-    queryFn:  () => orgApi.getTeams({ department_id: form.department_id }),
+    queryFn:  () => orgApi.getTeams(form.department_id),
     enabled:  !!form.department_id,
   } as any);
   const { data: regions } = useQuery({ queryKey: ['regions'], queryFn: () => orgApi.getRegions() } as any);
   const { data: roles }   = useQuery({
     queryKey: ['roles-assignable'],
-    queryFn:  () => rolesApi.getRoles({ assignable: true }),
+    queryFn:  () => rolesApi.getRoles(true),
   } as any);
 
   const create = useMutation({

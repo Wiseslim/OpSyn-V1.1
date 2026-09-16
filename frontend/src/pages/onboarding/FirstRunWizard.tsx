@@ -11,7 +11,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { orgApi, infrastructureApi, smartoltApi, staffApi } from '../../api/index';
+import { infrastructureApi, settingsApi, smartoltApi, staffApi } from '../../api/index';
 import OpsynMark from '../../components/brand/OpsynMark';
 
 type StepId = 1 | 2 | 3 | 4 | 5;
@@ -113,7 +113,11 @@ function Step2({ onNext, onSkip }: { onNext: (regionId: string, siteId: string) 
   const [lng, setLng]               = useState('');
   const [error, setError]           = useState('');
 
-  const createRegion = useMutation({ mutationFn: (p: any) => orgApi.createRegion(p) });
+  // createRegion lives on settingsApi (POST /settings/regions), not orgApi.
+  const createRegion = useMutation({
+    mutationFn: (p: { name: string; code: string; parent_id?: string }) =>
+      settingsApi.createRegion(p),
+  });
   const createSite   = useMutation({ mutationFn: (p: any) => (infrastructureApi as any).createSite(p) });
 
   const handleSubmit = async (e: React.FormEvent) => {

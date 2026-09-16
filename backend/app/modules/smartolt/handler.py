@@ -8,6 +8,7 @@ from __future__ import annotations
 import datetime
 import hashlib
 import hmac
+import logging
 import uuid
 from typing import Any
 
@@ -16,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.smartolt.models import SmartOLTConfig, SmartOLTOltMap
 from app.core.context import tenant_id_ctx
+
+log = logging.getLogger("opsyn.smartolt")
 
 
 # SLA minutes by severity
@@ -242,13 +245,21 @@ async def _create_linked_task(
             title       = f"Investigate: {incident.title}",
             description = f"Outage incident {incident.reference} — severity {incident.severity}. Auto-created by SmartOLT integration.",
             status      = "new",
-            assigned_to = assignee_id,
+            assignee_user_id = assignee_id,
             ticket_number = ticket,
         )
         db.add(task)
         await db.flush()
         return task
     except Exception:
+        log.exception(
+            "smartolt_linked_task_failed",
+            extra={
+                "tenant_id":         str(tenant_id),
+                "incident_reference": getattr(incident, "reference", None),
+                "assignee_id":       str(assignee_id),
+            },
+        )
         return None
 
 

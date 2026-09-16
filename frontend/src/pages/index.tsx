@@ -915,6 +915,7 @@ export function StaffDetailPage(){
 // OUTAGE MONITOR
 // ════════════════════════════════════════════════════════════════
 export function OutagePage(){
+  const navigate=useNavigate();
   const [logModal,setLogModal]=useState(false);
   const [form,setForm]=useState({title:'',severity:'warning',description:'',olt_reference:''});
   const toast=useToast();
