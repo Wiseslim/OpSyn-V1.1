@@ -27,39 +27,75 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import (
     create_async_engine, AsyncSession, async_sessionmaker
 )
+from sqlalchemy.pool import NullPool
 
 from app.core.database import Base, get_db
-from main import app
+from app.core.redis_client import redis_pool
+from main import app, setup_rate_limiter
 
 
-# ── Async test configuration ──────────────────────────────────
-@pytest.fixture(scope="session")
-def event_loop():
-    """Provide a single event loop for the entire test session."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
+# ── Event loop policy ─────────────────────────────────────────
+# NOTE: there is deliberately no `event_loop` fixture here.
+#
+# pytest-asyncio runs each async test in its own function-scoped loop.
+# A session-scoped engine therefore hands out asyncpg connections bound
+# to the loop that created them, and the next test -- running in a
+# different loop -- fails with "Future attached to a different loop".
+# Overriding `event_loop` is also deprecated in pytest-asyncio >= 0.23.
+#
+# Instead: schema setup runs in its own isolated loop and is torn down
+# before any test starts, and every test gets a fresh engine with
+# NullPool so no connection ever outlives the loop that opened it.
+# This mirrors app/tasks/_db.py, which solves the same problem for
+# Celery workers.
 
 
-# ── Test database engine ──────────────────────────────────────
-@pytest.fixture(scope="session")
-async def db_engine():
+# ── Test database schema (session, sync) ──────────────────────
+@pytest.fixture(scope="session", autouse=True)
+def _db_schema():
     """
-    Create test database schema once per session.
-    Requires a running PostgreSQL with opsyn_test database.
-    Skip gracefully if not available.
+    Create the schema once per session and drop it at the end.
+
+    This is a *sync* fixture that drives async work through
+    asyncio.run(), so it owns a private loop that is closed before any
+    test runs. Nothing it opens can leak into a test's loop.
     """
     test_url = os.environ["DATABASE_URL"]
+
+    async def _run(op):
+        engine = create_async_engine(test_url, echo=False, poolclass=NullPool)
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(op)
+        finally:
+            await engine.dispose()
+
+    # create_all is idempotent -- it only adds missing tables, so it is
+    # safe on a database Alembic already owns (which is what CI does:
+    # `alembic upgrade head` then pytest).
     try:
-        engine = create_async_engine(test_url, echo=False)
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        yield engine
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-        await engine.dispose()
+        asyncio.run(_run(Base.metadata.create_all))
     except Exception as e:
         pytest.skip(f"Test database unavailable: {e}")
+
+    yield
+
+    # Deliberately NO drop_all. This fixture used to drop every table at
+    # session teardown, which would destroy the schema CI had just
+    # migrated and wipe any seeded fixture data. Tests get isolation from
+    # the per-test session rollback in `db_session`, not from dropping
+    # the database.
+
+
+# ── Test database engine (per test) ───────────────────────────
+@pytest.fixture
+async def db_engine():
+    """A fresh engine bound to this test's event loop."""
+    engine = create_async_engine(
+        os.environ["DATABASE_URL"], echo=False, poolclass=NullPool
+    )
+    yield engine
+    await engine.dispose()
 
 
 @pytest.fixture
@@ -75,17 +111,36 @@ async def db_session(db_engine):
 
 @pytest.fixture
 async def client(db_session):
-    """HTTP test client wired to the test database session."""
+    """HTTP test client wired to the test database session.
+
+    httpx's ASGITransport does not run the application lifespan, so
+    anything main.lifespan() normally sets up has to be started here.
+    Without the Redis connect below, every login fails with
+    "'NoneType' object has no attribute 'setex'" when the refresh token
+    is written -- redis_pool.client is still None.
+
+    Connecting inside this (function-scoped) fixture also keeps the
+    Redis client on the same event loop as the test using it.
+    """
+    await redis_pool.connect()
+    try:
+        await setup_rate_limiter()
+    except Exception:
+        pass  # rate limiting is optional in tests; Redis is already up
+
     async def override_db():
         yield db_session
 
     app.dependency_overrides[get_db] = override_db
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://testserver",
-    ) as c:
-        yield c
-    app.dependency_overrides.clear()
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://testserver",
+        ) as c:
+            yield c
+    finally:
+        app.dependency_overrides.clear()
+        await redis_pool.disconnect()
 
 
 # ── Auth token fixtures ───────────────────────────────────────
