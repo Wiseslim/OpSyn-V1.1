@@ -10,6 +10,7 @@ from starlette.requests import Request
 from fastapi import FastAPI as FA
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.security import verify_access_token
 
@@ -128,6 +129,19 @@ def register_exception_handlers(app: FA):
             for e in exc.errors()
         ]
         return JSONResponse(status_code=422, content={"success": False, "detail": errors})
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(request, exc):
+        # Without this, FastAPI answers HTTPException with a bare
+        # {"detail": ...}, while validation and unhandled errors answer
+        # {"success": false, "detail": ...}. Clients had to cope with both.
+        # `detail` keeps its position and shape, so existing consumers
+        # reading response.data.detail are unaffected.
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"success": False, "detail": exc.detail},
+            headers=getattr(exc, "headers", None),
+        )
 
     @app.exception_handler(Exception)
     async def generic_handler(request, exc):

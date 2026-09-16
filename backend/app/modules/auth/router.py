@@ -205,7 +205,7 @@ async def activate_account(
             raise ValueError("Not an invite token")
         user_id = payload["sub"]
     except (JWTError, ValueError, Exception):
-        raise HTTPException(status_code=400, detail="Invalid or expired activation token.")
+        raise HTTPException(status_code=401, detail="Invalid or expired activation token.")
 
     user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
     if not user:
@@ -280,7 +280,7 @@ async def reset_password_with_token(
             raise ValueError
         user_id = payload["sub"]
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid or expired reset token.")
+        raise HTTPException(status_code=401, detail="Invalid or expired reset token.")
 
     user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
     if not user:

@@ -126,8 +126,19 @@ async def apply_fttx_template(
             VALUES (:id, :tenant_id, :name)
             ON CONFLICT DO NOTHING
         """), {"id": new_id, "tenant_id": tenant_id, "name": dept_name})
-        # Ensure we use the actual row id (either newly created or existing)
-        row = (await db.execute(text("SELECT id FROM departments WHERE name = :name AND tenant_id = :tenant_id"), {"name": dept_name, "tenant_id": tenant_id})).scalar_one()
+        # Ensure we use an actual row id (either newly created or existing).
+        # Repeated seed runs can leave duplicate department rows from older data;
+        # choosing the first valid row keeps the bootstrap idempotent without
+        # raising MultipleResultsFound during setup.
+        row = (await db.execute(text("""
+            SELECT id
+            FROM departments
+            WHERE name = :name AND tenant_id = :tenant_id
+            ORDER BY id
+            LIMIT 1
+        """), {"name": dept_name, "tenant_id": tenant_id})).scalar()
+        if row is None:
+            raise RuntimeError(f"Department '{dept_name}' was not created for tenant {tenant_id}")
         dept_id = row
         dept_ids[dept_name] = dept_id
         result["departments"].append({"name": dept_name, "id": str(dept_id)})
@@ -142,7 +153,15 @@ async def apply_fttx_template(
         "id": new_region_id, "tenant_id": tenant_id,
         "name": "Default Region", "code": "DEF",
     })
-    region_row = (await db.execute(text("SELECT id FROM regions WHERE code = :code AND tenant_id = :tenant_id"), {"code": "DEF", "tenant_id": tenant_id})).scalar_one()
+    region_row = (await db.execute(text("""
+        SELECT id
+        FROM regions
+        WHERE code = :code AND tenant_id = :tenant_id
+        ORDER BY id
+        LIMIT 1
+    """), {"code": "DEF", "tenant_id": tenant_id})).scalar()
+    if region_row is None:
+        raise RuntimeError(f"Default region was not created for tenant {tenant_id}")
     result["region_id"] = str(region_row)
 
     # ── Seed global feature permissions ──────────────────────
