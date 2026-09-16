@@ -313,6 +313,9 @@ export interface CreateTaskRequest {
   dependent_task_ids?: string[];
   tags?: string[];
   estimated_hours?: number;
+  task_scope?: 'internal' | 'external';
+  source_app?: string;
+  archive_refs?: string[];
 }
 
 // ── Projects ─────────────────────────────────────────────────
@@ -428,15 +431,16 @@ export interface OutageIncident {
   description?: string;
   severity: OutageSeverity;
   status: OutageStatus;
-  region?: Region;
   olt_reference?: string;
-  reported_by: StaffProfileSummary;
-  assigned_team?: Team;
-  assigned_engineers: StaffProfileSummary[];
-  duration_minutes?: number;
-  resolved_at?: string;
+  /** Flat id -- the API does not embed the region object. */
+  region_id?: string | null;
+  source?: string;
+  affected_subscribers?: number;
+  sla_deadline?: string | null;
+  breached_sla?: boolean;
+  linked_task_id?: string | null;
+  resolved_at?: string | null;
   created_at: string;
-  updated_at: string;
 }
 
 // ── Onboarding ────────────────────────────────────────────────
