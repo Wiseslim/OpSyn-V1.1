@@ -6,6 +6,7 @@
 
 import { useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { OutageNotificationRule, TaskPriority, TaskStatus } from '@shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tasksApi } from '../api/tasks.api';
 import { staffApi } from '../api/staff.api';
@@ -317,10 +318,14 @@ export function TasksPage(){
 
   const createTask=useMutation({
     mutationFn:()=>tasksApi.create({
+      // This is the quick-create form on the dashboard; it only makes
+      // internal tasks. The backend defaults task_scope to "internal",
+      // but the payload type requires it to be stated.
+      task_scope: 'internal',
       title: form.title,
       description: form.description,
-      priority: form.priority as any,
-      status: form.status as any,
+      priority: form.priority as TaskPriority,
+      status: form.status as TaskStatus,
       deadline: form.deadline || undefined,
       department_id: form.department_id || undefined,
       tags: form.tags ? form.tags.split(',').map(t => t.trim()) : [],
@@ -1690,7 +1695,7 @@ export function ReportsPage(){
                       <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
                         <div style={{width:8,height:8,borderRadius:'50%',background:SEVERITY_COLORS[sev]??'var(--chalk3)'}}/>
                         <span style={{fontSize:12,fontWeight:700,color:'var(--chalk)',textTransform:'capitalize'}}>{sev}</span>
-                        <span style={badge(SEVERITY_COLORS[sev]??'var(--chalk3)',`${SEVERITY_COLORS[sev]??'var(--chalk3)'}18`,8)}>{data.count} incident{data.count!==1?'s':''}</span>
+                        <span style={badge(SEVERITY_COLORS[sev]??'var(--chalk3)',`${SEVERITY_COLORS[sev]??'var(--chalk3)'}18`)}>{data.count} incident{data.count!==1?'s':''}</span>
                       </div>
                       <div style={{display:'flex',gap:12}}>
                         <div style={{textAlign:'center'}}>
@@ -2147,7 +2152,11 @@ export function SettingsPage(){
   const [secretCopied,setSecretCopied]=useState(false);
   const [ruleModal,setRuleModal]=useState(false);
   const [editRule,setEditRule]=useState<any|null>(null);
-  const [ruleForm,setRuleForm]=useState({name:'',min_severity:'warning',min_subscribers:'0',channels:[] as string[],message_template:'',is_auto:true,is_active:true});
+  const [ruleForm,setRuleForm]=useState<{
+    name:string; min_severity:OutageNotificationRule['min_severity'];
+    min_subscribers:string; channels:OutageNotificationRule['channels'];
+    message_template:string; is_auto:boolean; is_active:boolean;
+  }>({name:'',min_severity:'warning',min_subscribers:'0',channels:[],message_template:'',is_auto:true,is_active:true});
 
   const {data:org,isLoading:orgLoading}=useQuery({queryKey:['settings','org'],queryFn:()=>settingsApi.getOrg()});
   const {data:depts=[],isLoading:deptsLoading}=useQuery({queryKey:['settings','departments'],queryFn:()=>settingsApi.getDepartments()});
@@ -2217,7 +2226,7 @@ export function SettingsPage(){
 
   const openNewRule=()=>{setEditRule(null);setRuleForm({name:'',min_severity:'warning',min_subscribers:'0',channels:[],message_template:'',is_auto:true,is_active:true});setRuleModal(true);};
   const openEditRule=(r:any)=>{setEditRule(r);setRuleForm({name:r.name,min_severity:r.min_severity,min_subscribers:String(r.min_subscribers),channels:r.channels??[],message_template:r.message_template??'',is_auto:r.is_auto,is_active:r.is_active});setRuleModal(true);};
-  const toggleChannel=(ch:string)=>setRuleForm(f=>({...f,channels:f.channels.includes(ch)?f.channels.filter(c=>c!==ch):[...f.channels,ch]}));
+  const toggleChannel=(ch:OutageNotificationRule['channels'][number])=>setRuleForm(f=>({...f,channels:f.channels.includes(ch)?f.channels.filter(c=>c!==ch):[...f.channels,ch]}));
 
   const saveRule=useMutation({
     mutationFn:()=>{
@@ -2695,7 +2704,7 @@ export function SettingsPage(){
       <Modal open={ruleModal} onClose={()=>setRuleModal(false)} title={editRule?'Edit Notification Rule':'New Notification Rule'}
         footer={<><Btn onClick={()=>setRuleModal(false)}>Cancel</Btn><Btn variant="brand" onClick={()=>saveRule.mutate()} disabled={!ruleForm.name||ruleForm.channels.length===0||saveRule.isPending}>{saveRule.isPending?'Saving…':editRule?'Save Changes':'Create Rule'}</Btn></>}>
         <Inp label="Rule Name *" value={ruleForm.name} onChange={(v:string)=>setRuleForm(f=>({...f,name:v}))} placeholder="e.g. Critical Alert — All Channels"/>
-        <Sel label="Min Severity" value={ruleForm.min_severity} onChange={v=>setRuleForm(f=>({...f,min_severity:v}))}
+        <Sel label="Min Severity" value={ruleForm.min_severity} onChange={v=>setRuleForm(f=>({...f,min_severity:v as OutageNotificationRule['min_severity']}))}
           options={[{label:'Critical',value:'critical'},{label:'High',value:'high'},{label:'Warning',value:'warning'},{label:'Low',value:'low'}]}/>
         <Inp label="Min Subscribers" value={ruleForm.min_subscribers} onChange={(v:string)=>setRuleForm(f=>({...f,min_subscribers:v}))} type="number" placeholder="0"/>
         <div style={{marginBottom:14}}>

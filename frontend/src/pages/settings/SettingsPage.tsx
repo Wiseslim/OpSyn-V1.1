@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { settingsApi, webhooksApi } from '../../api/index';
+import type { OutageNotificationRule } from '@shared';
 import { useUIStore } from '../../store/ui.store';
 import { Button, Badge, Modal, Input, Select } from '../../components/ui';
 
@@ -124,9 +125,17 @@ export default function SettingsPage() {
   const [editRule, setEditRule]               = useState<any | null>(null);
   const [configModal, setConfigModal]         = useState<{ key: string; name: string } | null>(null);
   const [configForm, setConfigForm]           = useState<Record<string, string>>({});
-  const [ruleForm, setRuleForm]               = useState({
+  const [ruleForm, setRuleForm]               = useState<{
+    name: string;
+    min_severity: OutageNotificationRule['min_severity'];
+    min_subscribers: string;
+    channels: OutageNotificationRule['channels'];
+    message_template: string;
+    is_auto: boolean;
+    is_active: boolean;
+  }>({
     name: '', min_severity: 'warning', min_subscribers: '0',
-    channels: [] as string[], message_template: '', is_auto: true, is_active: true,
+    channels: [], message_template: '', is_auto: true, is_active: true,
   });
 
   const { data: existingConfig }  = useQuery({
@@ -203,7 +212,7 @@ export default function SettingsPage() {
 
   const openNewRule = () => { setEditRule(null); setRuleForm({ name: '', min_severity: 'warning', min_subscribers: '0', channels: [], message_template: '', is_auto: true, is_active: true }); setRuleModal(true); };
   const openEditRule = (r: any) => { setEditRule(r); setRuleForm({ name: r.name, min_severity: r.min_severity, min_subscribers: String(r.min_subscribers), channels: r.channels ?? [], message_template: r.message_template ?? '', is_auto: r.is_auto, is_active: r.is_active }); setRuleModal(true); };
-  const toggleChannel = (ch: string) => setRuleForm(f => ({ ...f, channels: f.channels.includes(ch) ? f.channels.filter(c => c !== ch) : [...f.channels, ch] }));
+  const toggleChannel = (ch: OutageNotificationRule['channels'][number]) => setRuleForm(f => ({ ...f, channels: f.channels.includes(ch) ? f.channels.filter(c => c !== ch) : [...f.channels, ch] }));
 
   const saveRule = useMutation({
     mutationFn: () => {
@@ -836,7 +845,7 @@ export default function SettingsPage() {
       <Modal open={ruleModal} onClose={() => setRuleModal(false)} title={editRule ? 'Edit Notification Rule' : 'New Notification Rule'}
         footer={<><Button variant="secondary" onClick={() => setRuleModal(false)}>Cancel</Button><Button variant="primary" onClick={() => saveRule.mutate()} disabled={!ruleForm.name || ruleForm.channels.length === 0 || saveRule.isPending} loading={saveRule.isPending}>{editRule ? 'Save Changes' : 'Create Rule'}</Button></>}>
         <Input label="Rule Name *" value={ruleForm.name} onChange={v => setRuleForm(f => ({ ...f, name: v }))} placeholder="e.g. Critical Alert — All Channels" />
-        <Select label="Min Severity" value={ruleForm.min_severity} onChange={v => setRuleForm(f => ({ ...f, min_severity: v }))}
+        <Select label="Min Severity" value={ruleForm.min_severity} onChange={v => setRuleForm(f => ({ ...f, min_severity: v as OutageNotificationRule['min_severity'] }))}
           options={[{ label: 'Critical', value: 'critical' }, { label: 'High', value: 'high' }, { label: 'Warning', value: 'warning' }, { label: 'Low', value: 'low' }]} />
         <Input label="Min Subscribers" value={ruleForm.min_subscribers} onChange={v => setRuleForm(f => ({ ...f, min_subscribers: v }))} placeholder="0" />
         <div style={{ marginBottom: 14 }}>

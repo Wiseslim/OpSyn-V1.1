@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tasksApi } from '../../api/tasks.api';
 import { orgApi } from '../../api/index';
 import { useTaskStore } from '../../store/task.store';
+import type { TaskFilters as TaskFiltersState } from '../../store/task.store';
 import { useUIStore } from '../../store/ui.store';
 import type { Department, Task, TaskBoard, TaskStatusBoard } from '@shared';
 
@@ -32,7 +33,7 @@ const TABS: { key: ViewMode; label: string }[] = [
   { key: 'pending_approvals',  label: 'Pending Approvals' },
 ];
 
-function applyFilters(board: TaskBoard | undefined, filters: ReturnType<typeof useTaskStore>['filters']): TaskBoard | undefined {
+function applyFilters(board: TaskBoard | undefined, filters: TaskFiltersState): TaskBoard | undefined {
   if (!board) return undefined;
   if (!filters.search && !filters.priority && !filters.status && !filters.deadline_bucket) return board;
 

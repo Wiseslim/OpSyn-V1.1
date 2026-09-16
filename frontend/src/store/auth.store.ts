@@ -8,7 +8,7 @@ import { persist } from 'zustand/middleware';
 import type { AuthUser } from '@shared';
 import { tokenStore } from '../api/client';
 
-interface AuthState {
+export interface AuthState {
   user:          AuthUser | null;
   isAuth:        boolean;
   roleLevel:     number;

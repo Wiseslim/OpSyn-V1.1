@@ -118,7 +118,9 @@ function Step2({ onNext, onSkip }: { onNext: (regionId: string, siteId: string) 
     mutationFn: (p: { name: string; code: string; parent_id?: string }) =>
       settingsApi.createRegion(p),
   });
-  const createSite   = useMutation({ mutationFn: (p: any) => (infrastructureApi as any).createSite(p) });
+  const createSite   = useMutation({
+    mutationFn: (p: Record<string, unknown>) => infrastructureApi.createSite(p),
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

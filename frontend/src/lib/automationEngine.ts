@@ -43,7 +43,7 @@ export interface AutomationResult {
 // ── Condition evaluator ──────────────────────────────────────
 
 function evaluateCondition(condition: AutomationCondition, task: Task): boolean {
-  const raw = (task as Record<string, unknown>)[condition.field];
+  const raw = (task as unknown as Record<string, unknown>)[condition.field];
   const val = condition.value;
 
   switch (condition.operator) {

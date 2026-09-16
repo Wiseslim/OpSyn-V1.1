@@ -14,6 +14,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tasksApi, taskCommentsApi, taskAuditApi } from '../../../api/tasks.api';
 import { useUIStore } from '../../../store/ui.store';
 import { useAuthStore } from '../../../store/auth.store';
+import type { AuthState } from '../../../store/auth.store';
 import { usePermissions } from '../../../hooks/usePermissions';
 import {
   PIPELINE_FLOW,
@@ -201,7 +202,7 @@ function ActionButtons({
   task:              Task;
   dependencies:      TaskDependency[];
   unresolvedActions: boolean;
-  user:              ReturnType<typeof useAuthStore>['user'];
+  user:              AuthState['user'];
   isPending:         boolean;
   canApprove:        boolean;
   onMove:            (to: TaskStatus) => void;
@@ -270,7 +271,8 @@ function ActionButtons({
         btn('archived', '📦 Archive', { background: 'rgba(255,255,255,.05)', color: 'var(--chalk3)' })}
 
       {/* Mark Blocked — available from several states */}
-      {status !== 'blocked' && status !== 'done' && status !== 'archived' &&
+      {/* 'archived' is already excluded by the early return above. */}
+      {status !== 'blocked' && status !== 'done' &&
         btn('blocked', '🚫 Mark Blocked', { background: 'rgba(244,63,94,.08)', color: 'var(--rose)' })}
 
       {/* Back moves */}

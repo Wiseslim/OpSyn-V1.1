@@ -6,6 +6,8 @@
 import apiClient from './client';
 import type {
   Task,
+  TaskPriority,
+  TaskStatus,
   TaskBoard,
   TaskStatusBoard,
   TaskComment,
@@ -26,9 +28,13 @@ import type {
 export interface TaskWorkflowPayload {
   task_scope: 'internal' | 'external';
   title: string;
-  description: string;
-  deadline: string;
-  priority?: string;
+  // description and deadline are Optional[str] = None on the backend
+  // (CreateTaskRequest in tasks/router.py). Declaring them required here
+  // forced callers to invent values the API never asked for.
+  description?: string;
+  deadline?: string;
+  priority?: TaskPriority;
+  status?: TaskStatus;
   assignee_user_id?: string | null;
   department_id?: string | null;
   tags?: string[];

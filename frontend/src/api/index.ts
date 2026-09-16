@@ -239,7 +239,8 @@ export const infrastructureApi = {
     apiClient.get('/infrastructure/sites', { params }).then(r => r.data),
 
   createSite: (payload: Record<string, unknown>) =>
-    apiClient.post('/infrastructure/sites', payload).then(r => r.data),
+    apiClient.post<{ id: string; name: string }>('/infrastructure/sites', payload)
+      .then(r => r.data),
 
   updateSite: (id: string, payload: Record<string, unknown>) =>
     apiClient.put(`/infrastructure/sites/${id}`, payload).then(r => r.data),
@@ -436,7 +437,7 @@ export const settingsApi = {
     apiClient.get('/settings/regions').then(r => r.data.data),
 
   createRegion: (payload: { name: string; code: string; parent_id?: string }) =>
-    apiClient.post('/settings/regions', payload).then(r => r.data.data),
+    apiClient.post<{ data: Region }>('/settings/regions', payload).then(r => r.data.data),
 
   getFeaturePermissions: () =>
     apiClient.get('/settings/feature-permissions').then(r => r.data.data),

@@ -5,6 +5,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { staffApi } from '../../api/index';
+import type { StaffStatus } from '@shared';
 import { useUIStore } from '../../store/ui.store';
 import { Button, Badge } from '../../components/ui';
 
@@ -64,7 +65,7 @@ export default function StaffDetailPage() {
   const { data: perf }              = useQuery({ queryKey: ['staff-perf', id],        queryFn: () => staffApi.getPerformance(id),   enabled: !!id, staleTime: 3600000 } as any);
 
   const updateStatus = useMutation({
-    mutationFn: (status: string) => staffApi.updateStatus(id, status),
+    mutationFn: (status: StaffStatus) => staffApi.updateStatus(id, status),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['staff', id] }); toast.success('Status updated'); },
     onError:   (e: any) => toast.error('Failed', e?.response?.data?.detail ?? e?.message),
   });

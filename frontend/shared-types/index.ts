@@ -119,7 +119,7 @@ export interface Region {
 }
 
 // ── Staff ────────────────────────────────────────────────────
-export type StaffStatus = 'active' | 'inactive' | 'suspended';
+export type StaffStatus = 'active' | 'inactive' | 'suspended' | 'on_leave';
 export type EmploymentType = 'permanent' | 'contract' | 'intern';
 
 export interface StaffProfileSummary {
