@@ -21,6 +21,7 @@ import { useAuthStore } from '../store/auth.store';
 import OpsynMark from '../components/brand/OpsynMark';
 import { PoweredBy } from '../components/brand/OpsynMark';
 import { useUIStore } from '../store/ui.store';
+import type { ApiError } from '../api/client';
 
 // ── Normalise backend responses: flat array OR paginated {items:[]} ──
 const toArr = (d: any): any[] => Array.isArray(d) ? d : (d?.items ?? []);
@@ -331,7 +332,7 @@ export function TasksPage(){
       tags: form.tags ? form.tags.split(',').map(t => t.trim()) : [],
     }),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['tasks']});setNewTask(false);setForm({title:'',description:'',priority:'medium',status:'backlog',deadline:'',tags:'',department_id:''});toast.success('Task created');},
-    onError:(e:any)=>toast.error('Failed',e?.detail),
+    onError:(e: ApiError)=>toast.error('Failed',e?.detail),
   });
   const moveTask=useMutation({
     mutationFn:({id,status}:{id:string;status:string})=>tasksApi.updateStatus(id,status),
@@ -526,7 +527,7 @@ export function StaffListPage(){
   const deactivate=useMutation({
     mutationFn:(id:string)=>staffApi.updateStatus(id,'inactive'),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['staff']});setDeact(null);toast.success('Staff deactivated');},
-    onError:(e:any)=>toast.error('Failed',e?.detail),
+    onError:(e: ApiError)=>toast.error('Failed',e?.detail),
   });
   const activate=(id:string)=>staffApi.updateStatus(id,'active').then(()=>{qc.invalidateQueries({queryKey:['staff']});toast.success('Reactivated');});
 
@@ -658,7 +659,7 @@ export function StaffCreatePage(){
   const create=useMutation({
     mutationFn:()=>staffApi.create(form),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['staff']});toast.success('Account activated on Opsyn!','Powered by SlimTech');navigate('/staff');},
-    onError:(e:any)=>toast.error('Failed to create staff',e?.detail||e?.message),
+    onError:(e: ApiError)=>toast.error('Failed to create staff',e?.detail||e?.message),
   });
 
   const STEPS=['Basic Info','Organisation','Access Control','Operational','Status'];
@@ -792,7 +793,7 @@ export function StaffDetailPage(){
   const updateStatus=useMutation({
     mutationFn:(status:'active'|'inactive'|'suspended')=>staffApi.updateStatus(id,status),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['staff',id]});toast.success('Status updated');},
-    onError:(e:any)=>toast.error('Failed',e?.detail),
+    onError:(e: ApiError)=>toast.error('Failed',e?.detail),
   });
 
   if(isLoading)return<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'var(--chalk3)'}}>Loading…</div>;
@@ -931,17 +932,17 @@ export function OutagePage(){
   const log=useMutation({
     mutationFn:()=>outageApi.log(form as any),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['outages']});setLogModal(false);setForm({title:'',severity:'warning',description:'',olt_reference:''});toast.info('Outage logged');},
-    onError:(e:any)=>toast.error('Failed to log',e?.detail),
+    onError:(e: ApiError)=>toast.error('Failed to log',e?.detail),
   });
   const resolve=useMutation({
     mutationFn:(id:string)=>outageApi.resolve(id),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['outages']});toast.success('Outage resolved');},
-    onError:(e:any)=>toast.error('Failed',e?.detail),
+    onError:(e: ApiError)=>toast.error('Failed',e?.detail),
   });
   const setMonitoring=useMutation({
     mutationFn:(id:string)=>outageApi.updateStatus(id,'monitoring'),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['outages']});toast.info('Status set to Monitoring');},
-    onError:(e:any)=>toast.error('Failed',e?.detail),
+    onError:(e: ApiError)=>toast.error('Failed',e?.detail),
   });
 
   const items     =(data as any)?.items??[];
@@ -1075,10 +1076,10 @@ export function OnboardingPage(){
   const {data:roles}    =useQuery({queryKey:['roles'],queryFn:()=>rolesApi.getRoles()});
   const {data:depts}    =useQuery({queryKey:['departments'],queryFn:()=>orgApi.getDepartments()});
 
-  const mgrApprove=useMutation({mutationFn:(id:string)=>onboardingApi.managerApprove(id),onSuccess:()=>{qc.invalidateQueries({queryKey:['onboarding']});toast.success('Phase 1 approved','Forwarded to admin for final approval');},onError:(e:any)=>toast.error('Failed',e?.response?.data?.detail??e?.message)});
-  const approve   =useMutation({mutationFn:(id:string)=>onboardingApi.approve(id),onSuccess:()=>{qc.invalidateQueries({queryKey:['onboarding']});toast.success('Request approved','Account provisioned on Opsyn');},onError:(e:any)=>toast.error('Failed',e?.response?.data?.detail??e?.message)});
-  const reject    =useMutation({mutationFn:({id,reason}:{id:string,reason?:string})=>onboardingApi.reject(id,reason),onSuccess:()=>{qc.invalidateQueries({queryKey:['onboarding']});setRejectModal(null);setRejectReason('');toast.info('Request rejected');},onError:(e:any)=>toast.error('Failed',e?.response?.data?.detail??e?.message)});
-  const submit    =useMutation({mutationFn:()=>onboardingApi.submit(form as any),onSuccess:()=>{qc.invalidateQueries({queryKey:['onboarding']});setSubmitModal(false);setForm({proposed_first_name:'',proposed_last_name:'',proposed_email:'',proposed_role_id:'',department_id:'',justification:''});toast.success('Request submitted','Pending manager approval');},onError:(e:any)=>toast.error('Failed',e?.response?.data?.detail??e?.message)});
+  const mgrApprove=useMutation({mutationFn:(id:string)=>onboardingApi.managerApprove(id),onSuccess:()=>{qc.invalidateQueries({queryKey:['onboarding']});toast.success('Phase 1 approved','Forwarded to admin for final approval');},onError:(e: ApiError)=>toast.error('Failed',e?.response?.data?.detail??e?.message)});
+  const approve   =useMutation({mutationFn:(id:string)=>onboardingApi.approve(id),onSuccess:()=>{qc.invalidateQueries({queryKey:['onboarding']});toast.success('Request approved','Account provisioned on Opsyn');},onError:(e: ApiError)=>toast.error('Failed',e?.response?.data?.detail??e?.message)});
+  const reject    =useMutation({mutationFn:({id,reason}:{id:string,reason?:string})=>onboardingApi.reject(id,reason),onSuccess:()=>{qc.invalidateQueries({queryKey:['onboarding']});setRejectModal(null);setRejectReason('');toast.info('Request rejected');},onError:(e: ApiError)=>toast.error('Failed',e?.response?.data?.detail??e?.message)});
+  const submit    =useMutation({mutationFn:()=>onboardingApi.submit(form as any),onSuccess:()=>{qc.invalidateQueries({queryKey:['onboarding']});setSubmitModal(false);setForm({proposed_first_name:'',proposed_last_name:'',proposed_email:'',proposed_role_id:'',department_id:'',justification:''});toast.success('Request submitted','Pending manager approval');},onError:(e: ApiError)=>toast.error('Failed',e?.response?.data?.detail??e?.message)});
 
   const set=(k:string,v:string)=>setForm(f=>({...f,[k]:v}));
   const items=(data as any)?.items??[];
@@ -1191,7 +1192,7 @@ export function RolesPage(){
   const createRole=useMutation({
     mutationFn:()=>rolesApi.createRole({name:form.name,level:parseInt(form.level),description:form.description} as any),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['roles']});setAddModal(false);setForm({name:'',level:'1',description:''});toast.success('Role created');},
-    onError:(e:any)=>toast.error('Failed',e?.detail),
+    onError:(e: ApiError)=>toast.error('Failed',e?.detail),
   });
 
   const PERM_MATRIX=[
@@ -1309,7 +1310,7 @@ export function ProjectsPage(){
         setAddModal(false);resetForm();
       }
     },
-    onError:(e:any)=>toast.error('Failed',e?.detail),
+    onError:(e: ApiError)=>toast.error('Failed',e?.detail),
   });
 
   const navigate = useNavigate();
@@ -1932,22 +1933,22 @@ export function InfrastructurePage(){
   const createSite=useMutation({
     mutationFn:()=>infrastructureApi.createSite(siteForm as any),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['infra']});setSiteModal(false);setSiteForm({name:'',site_type:'POP',address:'',status:'active',notes:''});toast.success('Site created');},
-    onError:(e:any)=>toast.error('Failed',e?.detail),
+    onError:(e: ApiError)=>toast.error('Failed',e?.detail),
   });
   const createNode=useMutation({
     mutationFn:()=>infrastructureApi.createNode(nodeForm as any),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['infra']});setNodeModal(false);setNodeForm({name:'',node_type:'OLT',site_id:'',manufacturer:'',model:'',ip_address:'',status:'active'});toast.success('Node created');},
-    onError:(e:any)=>toast.error('Failed',e?.detail),
+    onError:(e: ApiError)=>toast.error('Failed',e?.detail),
   });
   const createRoute=useMutation({
     mutationFn:()=>infrastructureApi.createRoute({...routeForm,length_km:routeForm.length_km?parseFloat(routeForm.length_km):undefined,capacity_gbps:routeForm.capacity_gbps?parseFloat(routeForm.capacity_gbps):undefined} as any),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['infra']});setRouteModal(false);setRouteForm({from_node_id:'',to_node_id:'',cable_type:'',length_km:'',capacity_gbps:'',status:'active'});toast.success('Route created');},
-    onError:(e:any)=>toast.error('Failed',e?.detail),
+    onError:(e: ApiError)=>toast.error('Failed',e?.detail),
   });
   const deleteRoute=useMutation({
     mutationFn:(id:string)=>infrastructureApi.deleteRoute(id),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['infra']});toast.info('Route removed');},
-    onError:(e:any)=>toast.error('Failed',e?.detail),
+    onError:(e: ApiError)=>toast.error('Failed',e?.detail),
   });
 
   const STAT_COLOR=(s:string)=>s==='active'?'var(--green)':s==='maintenance'?'var(--amber)':'var(--rose)';
@@ -2186,7 +2187,7 @@ export function SettingsPage(){
   const deleteDept=useMutation({
     mutationFn:(id:string)=>settingsApi.deleteDepartment(id),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['settings','departments']});toast.success('Department removed');},
-    onError:(e:any)=>toast.error('Cannot delete',e?.response?.data?.detail??'Department may have active staff'),
+    onError:(e: ApiError)=>toast.error('Cannot delete',e?.response?.data?.detail??'Department may have active staff'),
   });
   const grantFeature=useMutation({
     mutationFn:({deptId,key,level}:{deptId:string;key:string;level:number})=>settingsApi.grantDeptFeature(deptId,key,level),

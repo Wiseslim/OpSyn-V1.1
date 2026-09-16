@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { rolesApi } from '../../api/index';
 import { useUIStore } from '../../store/ui.store';
 import { Button, Badge, Modal, Input, Select, Textarea } from '../../components/ui';
+import type { ApiError } from '../../api/client';
 
 function useToast() {
   const { addToast } = useUIStore();
@@ -88,7 +89,7 @@ export default function RolesPage() {
       setForm({ name: '', level: '2', description: '' });
       toast.success('Role created');
     },
-    onError: (e: any) => toast.error('Failed', e?.response?.data?.detail ?? e?.message),
+    onError: (e: ApiError) => toast.error('Failed', e?.response?.data?.detail ?? e?.message),
   });
 
   const set  = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));

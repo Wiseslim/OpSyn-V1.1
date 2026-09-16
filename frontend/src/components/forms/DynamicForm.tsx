@@ -9,6 +9,7 @@ import { useMutation } from '@tanstack/react-query';
 import FormFieldRenderer from './FormFieldRenderer';
 import { formsApi } from '../../api/index';
 import type { FormSchema, FormField, FormFieldDependency, FormData } from '@shared';
+import type { ApiError } from '../../api/client';
 
 interface Props {
   schema:      FormSchema;
@@ -108,7 +109,7 @@ export default function DynamicForm({
       submitted_data: data,
     }),
     onSuccess: res => onSuccess?.(res.id),
-    onError: (e: any) => {
+    onError: (e: ApiError) => {
       // Handle 422 field-level errors from backend
       const detail = e?.response?.data?.detail;
       if (detail?.errors) {

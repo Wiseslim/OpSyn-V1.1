@@ -10,6 +10,7 @@ import { tasksApi } from '../../api/tasks.api';
 import { useAuthStore } from '../../store/auth.store';
 import { useUIStore } from '../../store/ui.store';
 import { Button, Badge, Modal, Select } from '../../components/ui';
+import type { ApiError } from '../../api/client';
 
 const toArr = (d: any): any[] => Array.isArray(d) ? d : (d?.items ?? []);
 
@@ -81,7 +82,7 @@ export default function DeptInboxPage() {
       setAssigneeId('');
       setAssignNote('');
     },
-    onError: (e: any) => toast.error('Assignment failed', e?.response?.data?.detail ?? e?.message),
+    onError: (e: ApiError) => toast.error('Assignment failed', e?.response?.data?.detail ?? e?.message),
   });
 
   const tasks    = toArr(data?.items ?? data);

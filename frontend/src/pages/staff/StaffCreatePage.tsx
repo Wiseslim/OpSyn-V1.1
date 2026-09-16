@@ -8,6 +8,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { staffApi, orgApi, rolesApi } from '../../api/index';
 import { useUIStore } from '../../store/ui.store';
 import { Button, Input, Select } from '../../components/ui';
+import type { ApiError } from '../../api/client';
 
 const toArr = (d: any): any[] => Array.isArray(d) ? d : (d?.items ?? []);
 
@@ -69,7 +70,7 @@ export default function StaffCreatePage() {
       job_title:        form.job_title        || undefined,
     } as any),
     onSuccess: () => { toast.success('Staff created', `${form.first_name} ${form.last_name} has been added`); navigate('/staff'); },
-    onError: (e: any) => {
+    onError: (e: ApiError) => {
       const detail = e?.response?.data?.detail;
       let msg: string;
       if (Array.isArray(detail)) {

@@ -12,6 +12,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { tasksApi, type DeptStaffMember, type ArchiveSearchResult } from '../../../api/tasks.api';
 import { orgApi } from '../../../api/index';
 import { useUIStore } from '../../../store/ui.store';
+import type { ApiError } from '../../../api/client';
 
 const INPUT: React.CSSProperties = {
   width: '100%', background: 'var(--bg3)', border: '1px solid var(--wire2)',
@@ -175,7 +176,7 @@ export default function NewTaskModal({ open, onClose, initialScope }: Props) {
         onClose();
       }
     },
-    onError: (err: any) => {
+    onError: (err: ApiError) => {
       addToast({ type: 'error', title: 'Failed to create task', message: err?.response?.data?.detail ?? err.message });
     },
   });

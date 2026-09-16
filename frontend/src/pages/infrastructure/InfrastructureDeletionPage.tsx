@@ -15,6 +15,7 @@ import { infrastructureApi } from '../../api/index';
 import { useUIStore } from '../../store/ui.store';
 import { Button, Spinner } from '../../components/ui';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
+import type { ApiError } from '../../api/client';
 
 // ── Toast helper ─────────────────────────────────────────────
 function useToast() {
@@ -135,7 +136,7 @@ function InfrastructureDeletionContent() {
       setSession(data);
       setStep(2);
     },
-    onError: (e: any) => {
+    onError: (e: ApiError) => {
       const errDetail = e?.response?.data?.detail;
       const msg = Array.isArray(errDetail?.errors)
         ? errDetail.errors[0]
@@ -155,7 +156,7 @@ function InfrastructureDeletionContent() {
         toast.error('Deletion failed', data.error ?? 'Database error — no records were deleted');
       }
     },
-    onError: (e: any) => {
+    onError: (e: ApiError) => {
       toast.error('Execute failed', e?.detail ?? 'Unknown error');
     },
   });

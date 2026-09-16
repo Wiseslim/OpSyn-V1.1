@@ -15,6 +15,7 @@ import { infrastructureApi } from '../../api/index';
 import { useUIStore } from '../../store/ui.store';
 import { Button, Spinner } from '../../components/ui';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
+import type { ApiError } from '../../api/client';
 
 // ── Toast helper ─────────────────────────────────────────────
 function useToast() {
@@ -124,7 +125,7 @@ function InfrastructureUploadContent() {
       setSummary(data);
       setStep(2);
     },
-    onError: (e: any) => {
+    onError: (e: ApiError) => {
       const msg = e?.response?.data?.detail?.errors?.[0] ?? e?.detail ?? 'Upload failed';
       toast.error('Upload failed', msg);
     },
@@ -141,7 +142,7 @@ function InfrastructureUploadContent() {
         toast.error('Rollback', data.error ?? 'Commit rolled back due to a database error');
       }
     },
-    onError: (e: any) => {
+    onError: (e: ApiError) => {
       toast.error('Commit failed', e?.detail ?? 'Unknown error');
     },
   });

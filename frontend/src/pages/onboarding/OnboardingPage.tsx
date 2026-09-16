@@ -8,6 +8,7 @@ import { onboardingApi, rolesApi, orgApi } from '../../api/index';
 import { useAuthStore } from '../../store/auth.store';
 import { useUIStore } from '../../store/ui.store';
 import { Button, Badge, Modal, Input, Select, Textarea, DataTable, type Column } from '../../components/ui';
+import type { ApiError } from '../../api/client';
 
 const toArr = (d: any): any[] => Array.isArray(d) ? d : (d?.items ?? []);
 
@@ -72,17 +73,17 @@ export default function OnboardingPage() {
   const mgrApprove = useMutation({
     mutationFn: (id: string) => onboardingApi.managerApprove(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['onboarding'] }); toast.success('Phase 1 approved', 'Forwarded to admin for final approval'); },
-    onError: (e: any) => toast.error('Failed', e?.response?.data?.detail ?? e?.message),
+    onError: (e: ApiError) => toast.error('Failed', e?.response?.data?.detail ?? e?.message),
   });
   const approve = useMutation({
     mutationFn: (id: string) => onboardingApi.approve(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['onboarding'] }); toast.success('Request approved', 'Account provisioned on Opsyn'); },
-    onError: (e: any) => toast.error('Failed', e?.response?.data?.detail ?? e?.message),
+    onError: (e: ApiError) => toast.error('Failed', e?.response?.data?.detail ?? e?.message),
   });
   const reject = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason?: string }) => onboardingApi.reject(id, reason),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['onboarding'] }); setRejectModal(null); setRejectReason(''); toast.info('Request rejected'); },
-    onError: (e: any) => toast.error('Failed', e?.response?.data?.detail ?? e?.message),
+    onError: (e: ApiError) => toast.error('Failed', e?.response?.data?.detail ?? e?.message),
   });
   const submit = useMutation({
     mutationFn: () => onboardingApi.submit(form as any),
@@ -92,7 +93,7 @@ export default function OnboardingPage() {
       setForm({ proposed_first_name: '', proposed_last_name: '', proposed_email: '', proposed_role_id: '', department_id: '', justification: '' });
       toast.success('Request submitted', 'Pending manager approval');
     },
-    onError: (e: any) => toast.error('Failed', e?.response?.data?.detail ?? e?.message),
+    onError: (e: ApiError) => toast.error('Failed', e?.response?.data?.detail ?? e?.message),
   });
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));

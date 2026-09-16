@@ -8,6 +8,7 @@ import { settingsApi, webhooksApi } from '../../api/index';
 import type { OutageNotificationRule } from '@shared';
 import { useUIStore } from '../../store/ui.store';
 import { Button, Badge, Modal, Input, Select } from '../../components/ui';
+import type { ApiError } from '../../api/client';
 
 function useToast() {
   const { addToast } = useUIStore();
@@ -172,7 +173,7 @@ export default function SettingsPage() {
   const deleteDept = useMutation({
     mutationFn: (id: string) => settingsApi.deleteDepartment(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['settings', 'departments'] }); toast.success('Department removed'); },
-    onError: (e: any) => toast.error('Cannot delete', e?.response?.data?.detail ?? 'Department may have active staff'),
+    onError: (e: ApiError) => toast.error('Cannot delete', e?.response?.data?.detail ?? 'Department may have active staff'),
   });
   const grantFeature = useMutation({
     mutationFn: ({ deptId, key, level }: { deptId: string; key: string; level: number }) => settingsApi.grantDeptFeature(deptId, key, level),

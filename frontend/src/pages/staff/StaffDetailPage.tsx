@@ -8,6 +8,7 @@ import { staffApi } from '../../api/index';
 import type { StaffStatus } from '@shared';
 import { useUIStore } from '../../store/ui.store';
 import { Button, Badge } from '../../components/ui';
+import type { ApiError } from '../../api/client';
 
 function useToast() {
   const { addToast } = useUIStore();
@@ -67,7 +68,7 @@ export default function StaffDetailPage() {
   const updateStatus = useMutation({
     mutationFn: (status: StaffStatus) => staffApi.updateStatus(id, status),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['staff', id] }); toast.success('Status updated'); },
-    onError:   (e: any) => toast.error('Failed', e?.response?.data?.detail ?? e?.message),
+    onError:   (e: ApiError) => toast.error('Failed', e?.response?.data?.detail ?? e?.message),
   });
 
   if (isLoading) return (

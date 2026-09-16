@@ -4,6 +4,7 @@
 // ============================================================
 
 import apiClient from './client';
+import type { ApiError } from '../api/client';
 import type {
   TokenResponse, Department, Team, Region, Role, Permission, UserScope,
   OutageIncident, OnboardingRequest, Notification, AuditLog,
@@ -538,7 +539,7 @@ export const formsApi = {
   getSchema: (context: string) =>
     apiClient.get<APIResponse<FormSchema>>(`/forms/${context}`)
       .then(r => r.data.data)
-      .catch((e: any) => {
+      .catch((e: ApiError) => {
         // Handle both raw axios shape (e.response.status) and
         // normalised error shape (e.status) from the Axios interceptor.
         const status = e?.status ?? e?.response?.status;

@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { outageApi } from '../../api/index';
 import { useUIStore } from '../../store/ui.store';
+import type { ApiError } from '../../api/client';
 import {
   Button, Badge, Modal, Input, Select, Textarea, DataTable,
   type Column,
@@ -78,19 +79,19 @@ export default function OutagePage() {
       setForm({ title: '', severity: 'warning', description: '', olt_reference: '' });
       toast.info('Outage logged');
     },
-    onError: (e: any) => toast.error('Failed to log', e?.detail),
+    onError: (e: ApiError) => toast.error('Failed to log', e?.detail),
   });
 
   const resolve = useMutation({
     mutationFn: (id: string) => outageApi.resolve(id),
     onSuccess:  () => { qc.invalidateQueries({ queryKey: ['outages'] }); toast.success('Outage resolved'); },
-    onError: (e: any) => toast.error('Failed', e?.detail),
+    onError: (e: ApiError) => toast.error('Failed', e?.detail),
   });
 
   const setMonitoring = useMutation({
     mutationFn: (id: string) => outageApi.updateStatus(id, 'monitoring'),
     onSuccess:  () => { qc.invalidateQueries({ queryKey: ['outages'] }); toast.info('Status set to Monitoring'); },
-    onError: (e: any) => toast.error('Failed', e?.detail),
+    onError: (e: ApiError) => toast.error('Failed', e?.detail),
   });
 
   const items    = (data as any)?.items ?? [];

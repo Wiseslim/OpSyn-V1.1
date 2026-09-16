@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tasksApi } from '../../api/tasks.api';
 import { useUIStore } from '../../store/ui.store';
 import { usePermissions } from '../../hooks/usePermissions';
+import type { ApiError } from '../../api/client';
 
 function useToast() {
   const { addToast } = useUIStore();
@@ -56,7 +57,7 @@ export default function DeletedTasksPage() {
       qc.invalidateQueries({ queryKey: ['tasks', 'board'] });
       toast.success('Task restored successfully.');
     },
-    onError: (err: any) => toast.error('Restore failed', err?.response?.data?.detail ?? err?.message),
+    onError: (err: ApiError) => toast.error('Restore failed', err?.response?.data?.detail ?? err?.message),
   });
 
   const purge = useMutation({
@@ -66,7 +67,7 @@ export default function DeletedTasksPage() {
       setPurgeTarget(null);
       toast.success('Task permanently purged.');
     },
-    onError: (err: any) => {
+    onError: (err: ApiError) => {
       setPurgeTarget(null);
       toast.error('Purge failed', err?.response?.data?.detail ?? err?.message);
     },

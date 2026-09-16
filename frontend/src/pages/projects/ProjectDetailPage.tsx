@@ -14,6 +14,7 @@ import { ActivityTimeline } from '../../components/timeline';
 import { projectsApi, settingsApi } from '../../api/index';
 import { useUIStore } from '../../store/ui.store';
 import type { ProjectPipelineResponse } from '@shared';
+import type { ApiError } from '../../api/client';
 
 function useToast() {
   const { addToast } = useUIStore();
@@ -81,7 +82,7 @@ export default function ProjectDetailPage() {
       setShowStartPipeline(false);
       toast.success('Pipeline started', 'The pipeline is now active.');
     },
-    onError: (e: any) => toast.error('Failed to start pipeline', e?.detail ?? e?.message),
+    onError: (e: ApiError) => toast.error('Failed to start pipeline', e?.detail ?? e?.message),
   });
 
   if (projLoading) {

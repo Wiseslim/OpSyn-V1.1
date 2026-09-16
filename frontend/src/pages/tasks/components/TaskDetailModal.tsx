@@ -39,6 +39,7 @@ import { ReturnDeptModal }   from './ReturnDeptModal';
 import { AdminDeleteModal }  from './AdminDeleteModal';
 import { ActivityTimeline } from '../../../components/timeline';
 import { ErrorBoundary }   from '../../../components/ErrorBoundary';
+import type { ApiError } from '../../../api/client';
 import type {
   Task,
   TaskComment,
@@ -608,7 +609,7 @@ export default function TaskDetailModal({ task, onClose }: Props) {
       qc.invalidateQueries({ queryKey: ['tasks', task!.id, 'audit'] });
       addToast({ type: 'success', title: `Task moved to ${STATE_LABELS[payload.to_status]}` });
     },
-    onError: (err: any) => {
+    onError: (err: ApiError) => {
       setShowBlockModal(false);
       setShowDoneModal(false);
       const msg = err?.response?.data?.detail ?? 'Transition failed. Check validation rules.';
@@ -660,7 +661,7 @@ export default function TaskDetailModal({ task, onClose }: Props) {
       setShowPushBackModal(false);
       addToast({ type: 'success', title: 'Task returned. Reason logged and parties notified.' });
     },
-    onError: (err: any) => {
+    onError: (err: ApiError) => {
       setShowPushBackModal(false);
       setTransitionError(err?.response?.data?.detail ?? 'Push back failed.');
     },
@@ -676,7 +677,7 @@ export default function TaskDetailModal({ task, onClose }: Props) {
       setShowForwardModal(false);
       addToast({ type: 'success', title: 'Task forwarded. Assignment log updated.' });
     },
-    onError: (err: any) => {
+    onError: (err: ApiError) => {
       setShowForwardModal(false);
       setTransitionError(err?.response?.data?.detail ?? 'Forward failed.');
     },
@@ -693,7 +694,7 @@ export default function TaskDetailModal({ task, onClose }: Props) {
       setShowForwardDeptModal(false);
       addToast({ type: 'success', title: 'Task routed to department. They have been notified.' });
     },
-    onError: (err: any) => {
+    onError: (err: ApiError) => {
       setShowForwardDeptModal(false);
       setTransitionError(err?.response?.data?.detail ?? 'Department forward failed.');
     },
@@ -707,7 +708,7 @@ export default function TaskDetailModal({ task, onClose }: Props) {
       setShowEscalateModal(false);
       addToast({ type: 'success', title: 'Escalated. Department manager has been notified.' });
     },
-    onError: (err: any) => {
+    onError: (err: ApiError) => {
       setShowEscalateModal(false);
       setTransitionError(err?.response?.data?.detail ?? 'Escalation failed.');
     },
@@ -723,7 +724,7 @@ export default function TaskDetailModal({ task, onClose }: Props) {
       setShowReturnDeptModal(false);
       addToast({ type: 'success', title: 'Task returned to previous department.' });
     },
-    onError: (err: any) => {
+    onError: (err: ApiError) => {
       setShowReturnDeptModal(false);
       setTransitionError(err?.response?.data?.detail ?? 'Return to department failed.');
     },
@@ -742,7 +743,7 @@ export default function TaskDetailModal({ task, onClose }: Props) {
       });
       onClose();
     },
-    onError: (err: any) => {
+    onError: (err: ApiError) => {
       setShowAdminDeleteModal(false);
       setTransitionError(err?.response?.data?.detail ?? 'Deletion failed.');
     },
@@ -757,7 +758,7 @@ export default function TaskDetailModal({ task, onClose }: Props) {
       qc.invalidateQueries({ queryKey: ['tasks', 'board'] });
       addToast({ type: 'success', title: 'Task reopened and moved back to In Progress.' });
     },
-    onError: (err: any) => {
+    onError: (err: ApiError) => {
       setTransitionError(err?.response?.data?.detail ?? 'Reopen failed.');
     },
   });

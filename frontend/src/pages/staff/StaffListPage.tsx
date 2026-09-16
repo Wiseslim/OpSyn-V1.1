@@ -11,6 +11,7 @@ import { rolesApi, orgApi } from '../../api/index';
 import { useUIStore } from '../../store/ui.store';
 import { useAuthStore } from '../../store/auth.store';
 import { Button, Badge, Modal, DataTable, Pagination, type Column } from '../../components/ui';
+import type { ApiError } from '../../api/client';
 
 const toArr = (d: any): any[] => Array.isArray(d) ? d : (d?.items ?? []);
 
@@ -51,7 +52,7 @@ export default function StaffListPage() {
   const deactivate = useMutation({
     mutationFn: (id: string) => staffApi.updateStatus(id, 'inactive'),
     onSuccess:  () => { qc.invalidateQueries({ queryKey: ['staff'] }); setDeact(null); toast.success('Staff deactivated'); },
-    onError: (e: any) => toast.error('Failed', e?.detail),
+    onError: (e: ApiError) => toast.error('Failed', e?.detail),
   });
   const activate = (id: string) =>
     staffApi.updateStatus(id, 'active').then(() => { qc.invalidateQueries({ queryKey: ['staff'] }); toast.success('Reactivated'); });
@@ -59,7 +60,7 @@ export default function StaffListPage() {
   const deleteStaff = useMutation({
     mutationFn: (id: string) => staffApi.delete(id),
     onSuccess:  () => { qc.invalidateQueries({ queryKey: ['staff'] }); setDeleteTarget(null); toast.success('Staff member deleted'); },
-    onError: (e: any) => toast.error('Delete failed', e?.response?.data?.detail ?? e?.detail ?? e?.message),
+    onError: (e: ApiError) => toast.error('Delete failed', e?.response?.data?.detail ?? e?.detail ?? e?.message),
   });
 
   const items      = (data as any)?.items ?? [];

@@ -10,6 +10,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { ApiError } from '../../api/client';
 import {
   formBuilderApi,
   type FieldDefinition,
@@ -1140,7 +1141,7 @@ function AssociationsPanel({
       setForm({ ...BLANK_ASSOC_FORM });
       setFormErr('');
     },
-    onError: (e: any) => {
+    onError: (e: ApiError) => {
       const msg = e?.response?.data?.detail ?? 'Failed to create association.';
       setFormErr(typeof msg === 'string' ? msg : JSON.stringify(msg));
     },
@@ -1159,7 +1160,7 @@ function AssociationsPanel({
       setForm({ ...BLANK_ASSOC_FORM });
       setFormErr('');
     },
-    onError: (e: any) => {
+    onError: (e: ApiError) => {
       const msg = e?.response?.data?.detail ?? 'Failed to update association.';
       setFormErr(typeof msg === 'string' ? msg : JSON.stringify(msg));
     },

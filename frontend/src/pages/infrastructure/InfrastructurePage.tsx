@@ -15,6 +15,7 @@ import {
 } from '../../components/ui';
 import { formBuilderApi, type ContextSchema } from '../../api/form-builder.api';
 import FormRenderer from '../../components/form-builder/FormRenderer';
+import type { ApiError } from '../../api/client';
 
 const InfraMapView = lazy(() => import('./InfraMapView'));
 
@@ -262,12 +263,12 @@ export default function InfrastructurePage() {
   const createSite = useMutation({
     mutationFn: () => infrastructureApi.createSite(siteForm as any),
     onSuccess:  () => { qc.invalidateQueries({ queryKey: ['infra'] }); setSiteModal(false); setSiteForm({ name: '', site_type: 'POP', address: '', status: 'active', notes: '' }); toast.success('Site created'); },
-    onError: (e: any) => toast.error('Failed', e?.detail),
+    onError: (e: ApiError) => toast.error('Failed', e?.detail),
   });
   const createNode = useMutation({
     mutationFn: () => infrastructureApi.createNode(nodeForm as any),
     onSuccess:  () => { qc.invalidateQueries({ queryKey: ['infra'] }); setNodeModal(false); setNodeForm({ name: '', node_type: 'OLT', site_id: '', manufacturer: '', model: '', ip_address: '', status: 'active' }); toast.success('Node created'); },
-    onError: (e: any) => toast.error('Failed', e?.detail),
+    onError: (e: ApiError) => toast.error('Failed', e?.detail),
   });
   const createRoute = useMutation({
     mutationFn: () => infrastructureApi.createRoute({
@@ -276,12 +277,12 @@ export default function InfrastructurePage() {
       capacity_gbps: routeForm.capacity_gbps ? parseFloat(routeForm.capacity_gbps) : undefined,
     } as any),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['infra'] }); setRouteModal(false); setRouteForm({ from_node_id: '', to_node_id: '', cable_type: '', length_km: '', capacity_gbps: '', status: 'active' }); toast.success('Route created'); },
-    onError: (e: any) => toast.error('Failed', e?.detail),
+    onError: (e: ApiError) => toast.error('Failed', e?.detail),
   });
   const deleteRoute = useMutation({
     mutationFn: (id: string) => infrastructureApi.deleteRoute(id),
     onSuccess:  () => { qc.invalidateQueries({ queryKey: ['infra'] }); toast.info('Route removed'); },
-    onError: (e: any) => toast.error('Failed', e?.detail),
+    onError: (e: ApiError) => toast.error('Failed', e?.detail),
   });
 
   const summ = summary as any;

@@ -101,6 +101,27 @@ apiClient.interceptors.response.use(
 );
 
 // ── Error normalisation ───────────────────────────────────────
+/**
+ * What a rejected request hands an onError / .catch() callback.
+ *
+ * Requests rejected through this module pass normaliseError() below,
+ * which attaches `detail` and `status`. A few call sites read the raw
+ * axios shape instead, so `response` is included. Every field is
+ * optional: this documents what may be present, it promises nothing.
+ */
+export interface ApiError extends Error {
+  detail?:   string;
+  status?:   number;
+  response?: {
+    status?: number;
+    // The unvalidated wire payload. `detail` is a string from the
+    // HTTPException handler and an array of field errors from the
+    // validation handler, so this stays deliberately open.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    data?: any;
+  };
+}
+
 function normaliseError(error: AxiosError<APIError>): Error & { detail: string; status: number } {
   const status = error.response?.status ?? 0;
   const raw    = error.response?.data;

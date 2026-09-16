@@ -10,6 +10,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { formsApi } from '../../api/index';
 import type { FormField, FormContext } from '@shared';
+import type { ApiError } from '../../api/client';
 
 // ── Shared primitives ─────────────────────────────────────────
 
@@ -160,7 +161,7 @@ export default function FormBuilderPage() {
       });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['form-schema', activeCtx] }); setAddOpen(false); setDraft({ ...BLANK_FIELD }); setDraftErr(''); },
-    onError: (e: any) => setDraftErr(e?.response?.data?.detail || 'Failed to add field.'),
+    onError: (e: ApiError) => setDraftErr(e?.response?.data?.detail || 'Failed to add field.'),
   });
 
   const updateField = useMutation({
@@ -178,7 +179,7 @@ export default function FormBuilderPage() {
       });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['form-schema', activeCtx] }); setEditField(null); setDraft({ ...BLANK_FIELD }); setDraftErr(''); },
-    onError: (e: any) => setDraftErr(e?.response?.data?.detail || 'Failed to update field.'),
+    onError: (e: ApiError) => setDraftErr(e?.response?.data?.detail || 'Failed to update field.'),
   });
 
   const deleteField = useMutation({
@@ -214,7 +215,7 @@ export default function FormBuilderPage() {
       action:             dep.action,
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['form-schema', activeCtx] }); setDepOpen(false); setDep({ source: '', target: '', operator: 'eq', value: '', action: 'show' }); setDepErr(''); },
-    onError: (e: any) => setDepErr(e?.response?.data?.detail || 'Failed to add dependency.'),
+    onError: (e: ApiError) => setDepErr(e?.response?.data?.detail || 'Failed to add dependency.'),
   });
 
   const deleteDep = useMutation({

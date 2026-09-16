@@ -10,6 +10,7 @@ import { shiftsApi } from '../../api/index';
 import { staffApi } from '../../api/staff.api';
 import { useToast } from '../../components/ui/Toast';
 import type { ShiftAssignment, Shift } from '@shared';
+import type { ApiError } from '../../api/client';
 
 // ── Design primitives ─────────────────────────────────────────
 const card = (extra?: React.CSSProperties): React.CSSProperties => ({
@@ -107,7 +108,7 @@ export default function ShiftSchedulerPage() {
       setModal(null); setAssignShiftId(''); setAssignNotes('');
       toast.success('Shift assigned');
     },
-    onError: (e: any) => toast.error('Conflict', e?.response?.data?.detail || 'Already assigned'),
+    onError: (e: ApiError) => toast.error('Conflict', e?.response?.data?.detail || 'Already assigned'),
   });
 
   const cancelAssignment = useMutation({

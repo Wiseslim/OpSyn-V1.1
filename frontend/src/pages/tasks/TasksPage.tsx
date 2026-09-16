@@ -21,6 +21,7 @@ import TaskFilters      from './components/TaskFilters';
 import NewTaskModal     from './components/NewTaskModal';
 import TaskDetailModal  from './components/TaskDetailModal';
 import QuickTaskPanel   from './components/QuickTaskPanel';
+import type { ApiError } from '../../api/client';
 
 type ViewMode = 'kanban' | 'status_board' | 'list' | 'gantt' | 'calendar' | 'pending_approvals';
 
@@ -112,7 +113,7 @@ export default function TasksPage() {
       qc.invalidateQueries({ queryKey: ['tasks', 'board'] });
       addToast({ type: 'success', title: 'Task approved and archived.' });
     },
-    onError: (err: any) => addToast({ type: 'error', title: 'Approve failed', message: err?.response?.data?.detail }),
+    onError: (err: ApiError) => addToast({ type: 'error', title: 'Approve failed', message: err?.response?.data?.detail }),
   });
 
   const doRejectDone = useMutation({
@@ -122,7 +123,7 @@ export default function TasksPage() {
       qc.invalidateQueries({ queryKey: ['tasks', 'board'] });
       addToast({ type: 'success', title: 'Task sent back to In Progress.' });
     },
-    onError: (err: any) => addToast({ type: 'error', title: 'Reject failed', message: err?.response?.data?.detail }),
+    onError: (err: ApiError) => addToast({ type: 'error', title: 'Reject failed', message: err?.response?.data?.detail }),
   });
 
   const board = useMemo(
