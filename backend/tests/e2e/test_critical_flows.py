@@ -23,17 +23,18 @@ class TestStaffCreationFlow:
         Create real dept + role in DB, then create a staff member.
         Verifies: auth → role gate → scope check → uniqueness → DB commit.
         """
-        from app.modules.organisation.models import Department, Role
+        from app.modules.organisation.models import Department
+        from app.modules.roles.models import Role
         from sqlalchemy import select
 
         # Get or create dept
         dept = (await db_session.execute(
             select(Department).limit(1)
-        )).scalar_one_or_none()
+        )).scalars().first()
 
         role = (await db_session.execute(
-            select(Role).where(Role.name == "Staff")
-        )).scalar_one_or_none()
+            select(Role).where(Role.name == "Staff").limit(1)
+        )).scalars().first()
 
         if not dept or not role:
             pytest.skip("Seed data required — run 'make seed' first")
@@ -68,11 +69,12 @@ class TestStaffCreationFlow:
 
     async def test_duplicate_email_returns_409(self, client, admin_token, db_session):
         """Creating a second account with the same email returns 409 Conflict."""
-        from app.modules.organisation.models import Department, Role
+        from app.modules.organisation.models import Department
+        from app.modules.roles.models import Role
         from sqlalchemy import select
 
-        dept = (await db_session.execute(select(Department).limit(1))).scalar_one_or_none()
-        role = (await db_session.execute(select(Role).where(Role.name == "Staff"))).scalar_one_or_none()
+        dept = (await db_session.execute(select(Department).limit(1))).scalars().first()
+        role = (await db_session.execute(select(Role).where(Role.name == "Staff").limit(1))).scalars().first()
 
         if not dept or not role:
             pytest.skip("Seed data required")
@@ -133,7 +135,10 @@ class TestScopeViolationFlow:
             headers={"Authorization": f"Bearer {manager_token}"},
         )
         assert resp.status_code == 403
-        assert "insufficient" in resp.json()["detail"].lower() or "forbidden" in resp.json().get("detail", "").lower()
+        # The 403 status is the contract; the wording is not. The endpoint
+        # answers "Access denied: feature 'settings.admin' is not granted...",
+        # which is a correct denial but contains neither literal word.
+        assert "denied" in resp.json().get("detail", "").lower()
 
     async def test_onboarding_approval_forbidden_for_manager(self, client, manager_token):
         """Manager cannot approve onboarding — requires Admin (level 5)."""
@@ -214,7 +219,9 @@ class TestTaskLifecycleFlow:
         # Create task
         resp = await client.post(
             "/api/v1/tasks",
-            json={"title": "Status-test task", "status": "backlog"},
+            # "backlog" is a pipeline_stage, not a task status. It used to be
+            # accepted and stored verbatim; the status validator now rejects it.
+            json={"title": "Status-test task", "status": "new"},
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert resp.status_code == 201
@@ -255,11 +262,12 @@ class TestOnboardingWorkflow:
 
     async def test_submit_onboarding_creates_pending_request(self, client, admin_token, db_session):
         """Submit an onboarding request and verify it's pending."""
-        from app.modules.organisation.models import Department, Role
+        from app.modules.organisation.models import Department
+        from app.modules.roles.models import Role
         from sqlalchemy import select
 
-        dept = (await db_session.execute(select(Department).limit(1))).scalar_one_or_none()
-        role = (await db_session.execute(select(Role).where(Role.name == "Staff"))).scalar_one_or_none()
+        dept = (await db_session.execute(select(Department).limit(1))).scalars().first()
+        role = (await db_session.execute(select(Role).where(Role.name == "Staff").limit(1))).scalars().first()
 
         if not dept or not role:
             pytest.skip("Seed data required")
@@ -278,7 +286,9 @@ class TestOnboardingWorkflow:
         )
         assert resp.status_code == 201
         data = resp.json()["data"]
-        assert data["approval_status"] == "pending"
+        # Onboarding is a two-stage approval: pending_manager -> pending_admin
+        # -> approved. A freshly submitted request lands in the first stage.
+        assert data["approval_status"].startswith("pending")
 
     async def test_approve_nonexistent_request_returns_404(self, client, admin_token):
         """Approving a non-existent request returns 404."""

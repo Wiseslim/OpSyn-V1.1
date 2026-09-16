@@ -214,9 +214,10 @@ class TestReportsMTTR:
         )
         assert resp.status_code == 200
         body = resp.json()
-        # Response is either a list or {data: [...]}
-        result = body if isinstance(body, list) else body.get("data", [])
-        assert isinstance(result, list)
+        # MTTR is an aggregate, not a list:
+        # {overall_mttr_hours, total_resolved, by_severity: {...}}
+        data = body["data"] if isinstance(body, dict) else body
+        assert "overall_mttr_hours" in data and "by_severity" in data
 
     async def test_mttr_accepts_severity_filter(self, client, admin_token):
         resp = await client.get(

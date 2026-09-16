@@ -132,7 +132,10 @@ class TestSoftDeleteValidation:
     """Soft-delete endpoint input validation."""
 
     async def test_delete_without_reason_returns_422(self, client, admin_token):
-        resp = await client.delete(
+        # httpx's .delete() has no json= parameter; a DELETE with a body
+        # must go through .request().
+        resp = await client.request(
+            "DELETE",
             f"/api/v1/tasks/{uuid.uuid4()}",
             json={},
             headers={"Authorization": f"Bearer {admin_token}"},
@@ -140,7 +143,8 @@ class TestSoftDeleteValidation:
         assert resp.status_code == 422
 
     async def test_delete_without_token_returns_401(self, client):
-        resp = await client.delete(
+        resp = await client.request(
+            "DELETE",
             f"/api/v1/tasks/{uuid.uuid4()}",
             json={"reason": "A" * 25},
         )

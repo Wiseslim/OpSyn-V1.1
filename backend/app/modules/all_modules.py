@@ -17,6 +17,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
 
 from app.core.database import Base, get_db
+from app.core.context import tenant_id_ctx
 from app.dependencies.auth import get_current_user
 from app.dependencies.permissions import check_permission
 from app.modules.organisation.models import Department, Team, Region
@@ -53,7 +54,14 @@ async def list_departments(db: AsyncSession = Depends(get_db), _: User = Depends
 @router_org.post("/departments", status_code=201)
 async def create_department(p: OrgRequest, db: AsyncSession = Depends(get_db),
                              _: User = Depends(check_permission("settings.admin"))):
-    d = Department(name=p.name, head_user_id=p.head_user_id, parent_id=p.parent_id)
+    # tenant_id is NOT NULL. Omitting it made every call to this endpoint
+    # fail with NotNullViolationError and return 500, so no department
+    # could be created through /api/v1/departments at all. The equivalent
+    # handler in settings/router.py already sets it this way.
+    d = Department(
+        tenant_id=tenant_id_ctx.get(),
+        name=p.name, head_user_id=p.head_user_id, parent_id=p.parent_id,
+    )
     db.add(d); await db.flush()
     return {"success": True, "data": {"id": str(d.id), "name": d.name}}
 

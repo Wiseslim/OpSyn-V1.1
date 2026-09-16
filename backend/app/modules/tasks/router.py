@@ -35,7 +35,7 @@ from app.modules.tasks.models import (
     ArchiveReference,
     TASK_STATES, PIPELINE_FLOW, ALLOWED_TRANSITIONS, TRANSITION_ROLE_REQUIREMENTS,
     COMMENT_TYPES, APPROVAL_KEYWORDS, REJECTION_KEYWORDS,
-    SOURCE_APPS,
+    SOURCE_APPS, TASK_SCOPES, TASK_PRIORITIES, TASK_STATUSES,
 )
 from app.modules.tasks.service import (
     task_workflow_service,
@@ -68,8 +68,26 @@ class CreateTaskRequest(BaseModel):
 
     @field_validator("task_scope")
     def _validate_scope(cls, v):
-        if v not in {"internal", "external"}:
+        if v not in TASK_SCOPES:
             raise ValueError("task_scope must be 'internal' or 'external'")
+        return v
+
+    @field_validator("priority")
+    def _validate_priority(cls, v):
+        # Previously unvalidated: any string was accepted and stored, so a
+        # task could carry a priority the UI has no colour or ordering for.
+        if v not in TASK_PRIORITIES:
+            raise ValueError(
+                "priority must be one of: " + ", ".join(sorted(TASK_PRIORITIES))
+            )
+        return v
+
+    @field_validator("status")
+    def _validate_status(cls, v):
+        if v not in TASK_STATUSES:
+            raise ValueError(
+                "status must be one of: " + ", ".join(sorted(TASK_STATUSES))
+            )
         return v
 
     @field_validator("deadline", "department_id", "project_id",
@@ -1533,7 +1551,12 @@ async def reopen_task(
     caller:  User         = Depends(get_current_user),
     request: Request      = ...,
 ):
-    task = await task_service.reopen_task(db, task_id, caller, ip_address=get_client_ip(request))
+    # reopen_task lives on TaskWorkflowService, not the router-local
+    # TaskService. Calling it on the wrong object raised AttributeError,
+    # so this endpoint returned 500 on every request.
+    task = await task_workflow_service.reopen_task(
+        db, task_id, caller, ip_address=get_client_ip(request)
+    )
     await db.commit()
     return {"success": True, "data": _task_dict(task)}
 

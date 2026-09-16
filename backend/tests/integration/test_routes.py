@@ -153,7 +153,7 @@ class TestTaskRoutes:
     async def test_create_task_minimal(self, client, admin_token):
         resp = await client.post(
             "/api/v1/tasks",
-            json={"title": "Integration test task", "priority": "medium", "status": "backlog"},
+            json={"title": "Integration test task", "priority": "medium", "status": "new"},
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert resp.status_code == 201

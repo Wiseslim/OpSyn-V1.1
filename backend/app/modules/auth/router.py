@@ -176,8 +176,19 @@ async def refresh_token(request: Request, response: Response, db: AsyncSession =
                                        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60}}
 
 
+class ActivateRequest(BaseModel):
+    token:    str
+    password: str
+
+
+class ResetRequest(BaseModel):
+    token:        str
+    new_password: str
+
+
 @router.post("/activate", response_model=dict)
 async def activate_account(
+    body:     ActivateRequest,
     request:  Request,
     response: Response,
     db:       AsyncSession = Depends(get_db),
@@ -186,11 +197,6 @@ async def activate_account(
     Redeem a one-time invite token and set the account password.
     On success the account is activated and a session token is returned.
     """
-    class ActivateRequest(BaseModel):
-        token:    str
-        password: str
-
-    body = ActivateRequest(**(await request.json()))
 
     # Validate invite token
     try:
@@ -262,15 +268,11 @@ async def activate_account(
 
 @router.post("/reset-password", response_model=dict)
 async def reset_password_with_token(
+    body:    ResetRequest,
     request: Request,
     db:      AsyncSession = Depends(get_db),
 ):
     """Reset password using a token (same invite-token mechanism)."""
-    class ResetRequest(BaseModel):
-        token:        str
-        new_password: str
-
-    body = ResetRequest(**(await request.json()))
 
     try:
         payload = decode_token(body.token)

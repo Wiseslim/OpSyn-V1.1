@@ -77,6 +77,12 @@ STATUS_TO_PIPELINE_STAGE: dict[str, str] = {
 
 TASK_SCOPES = {"internal", "external"}
 
+# Accepted values for the free-text `priority` and `status` columns.
+# These mirror the TaskPriority / TaskStatus unions in shared-types so the
+# API cannot store a value the frontend has no rendering for.
+TASK_PRIORITIES = {"critical", "high", "medium", "low"}
+TASK_STATUSES   = set(STATUS_TO_PIPELINE_STAGE)
+
 ASSIGNMENT_TYPES = {"initial", "reassign", "dept_transfer", "escalation"}
 
 REJECTION_TYPES = {"push_back", "dept_return", "escalation_reject", "completion_rejected"}
