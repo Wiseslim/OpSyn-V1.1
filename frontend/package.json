@@ -14,7 +14,9 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "lint:fix": "eslint src --report-unused-disable-directives --fix",
-    "lint:focus": "eslint src --report-unused-disable-directives --rule \"{\\\"@typescript-eslint/no-explicit-any\\\":\\\"off\\\"}\""
+    "lint:focus": "eslint src --report-unused-disable-directives --rule \"{\\\"@typescript-eslint/no-explicit-any\\\":\\\"off\\\"}\"",
+    "types:generate": "openapi-typescript http://localhost:8000/openapi.json -o src/api/schema.gen.ts",
+    "types:check": "node scripts/check-api-types.mjs"
   },
   "dependencies": {
     "@sentry/react": "^8.0.0",
@@ -46,6 +48,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",
     "jsdom": "^25.0.1",
+    "openapi-typescript": "^7.13.0",
     "postcss": "^8.4.47",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.0",

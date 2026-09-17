@@ -141,6 +141,14 @@ jobs:
       - name: Type-check with tsc
         run: npm run typecheck
 
+      # Regenerates the API types from the backend's OpenAPI document and
+      # fails if they differ from what is committed. Skips itself when the
+      # API is unreachable, which is the case in this job -- it is wired in
+      # so that a pipeline with the stack running catches contract drift.
+      - name: Check API types against the backend
+        run: npm run types:check
+
+
       - name: Run Vitest
         run: npm run test
 
