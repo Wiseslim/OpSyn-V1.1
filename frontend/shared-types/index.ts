@@ -182,7 +182,7 @@ export interface CreateStaffRequest {
   team_id?: string;
   manager_user_id?: string;
   role_id: string;
-  job_title: string;
+  job_title?: string;   // Optional[str] = None on the backend
   employment_type: EmploymentType;
   // Tab 3: Access
   permission_profile?: string;

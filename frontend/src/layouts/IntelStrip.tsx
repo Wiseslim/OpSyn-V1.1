@@ -6,7 +6,6 @@
 // 5 live KPI chips + last-updated timestamp.
 // ============================================================
 
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { reportsApi } from '../api/index';
@@ -27,8 +26,8 @@ function formatMTTR(mins: number | null): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-function nowHHMM(): string {
-  return new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+function hhmm(d: Date): string {
+  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
 // ── Chip component ─────────────────────────────────────────────
@@ -128,21 +127,21 @@ function Sep() {
 export default function IntelStrip() {
   const navigate        = useNavigate();
   const { isAdmin, isManager } = usePermissions();
-  const [lastUpdated, setLastUpdated] = useState<string>('—');
-  const [fetchOk,     setFetchOk]     = useState(true);
-
-  const { data } = useQuery<IntelData>({
+  // NOTE: this query used to pass `onError`, which React Query removed from
+  // useQuery in v5 (this project is on 5.99). It never fired, so fetchOk was
+  // never set false and the health dot below stayed green even while the
+  // endpoint was failing. The `as any` on the options object hid the
+  // resulting type error. Both signals are now read off the query itself,
+  // which also removes two setState calls from inside queryFn.
+  const { data, isError, dataUpdatedAt } = useQuery<IntelData>({
     queryKey:        ['intel-strip'],
-    queryFn:         async () => {
-      const d = await reportsApi.getIntelStrip();
-      setLastUpdated(nowHHMM());
-      setFetchOk(true);
-      return d as IntelData;
-    },
+    queryFn:         async () => (await reportsApi.getIntelStrip()) as IntelData,
     refetchInterval: 30_000,
     staleTime:       25_000,
-    onError:         () => setFetchOk(false),
-  } as any);
+  });
+
+  const fetchOk     = !isError;
+  const lastUpdated = dataUpdatedAt ? hhmm(new Date(dataUpdatedAt)) : '—';
 
   const d: IntelData = data ?? {
     active_outages:     0,

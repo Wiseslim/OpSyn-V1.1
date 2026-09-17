@@ -45,7 +45,7 @@ export default function StaffListPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['staff', 'list', { search, deptFilter, roleFilter, statusFilter, page }],
     queryFn:  () => staffApi.list({ search: search || undefined, dept_id: deptFilter || undefined, role_id: roleFilter || undefined, status: statusFilter || undefined, page, size: 20 }),
-  } as any);
+  });
   const { data: depts } = useQuery({ queryKey: ['departments'], queryFn: () => orgApi.getDepartments() });
   const { data: roles } = useQuery({ queryKey: ['roles'],       queryFn: () => rolesApi.getRoles() });
 

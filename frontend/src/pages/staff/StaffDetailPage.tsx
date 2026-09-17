@@ -63,7 +63,7 @@ export default function StaffDetailPage() {
   const id = window.location.pathname.split('/').pop() ?? '';
 
   const { data: staff,  isLoading } = useQuery({ queryKey: ['staff', id],             queryFn: () => staffApi.get(id),              enabled: !!id });
-  const { data: perf }              = useQuery({ queryKey: ['staff-perf', id],        queryFn: () => staffApi.getPerformance(id),   enabled: !!id, staleTime: 3600000 } as any);
+  const { data: perf }              = useQuery({ queryKey: ['staff-perf', id],        queryFn: () => staffApi.getPerformance(id),   enabled: !!id, staleTime: 3600000 });
 
   const updateStatus = useMutation({
     mutationFn: (status: StaffStatus) => staffApi.updateStatus(id, status),

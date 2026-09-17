@@ -520,7 +520,7 @@ export function StaffListPage(){
   const {data,isLoading}=useQuery({
     queryKey:['staff','list',{search,deptFilter,roleFilter,statusFilter,page}],
     queryFn:()=>staffApi.list({search:search||undefined,dept_id:deptFilter||undefined,role_id:roleFilter||undefined,status:statusFilter||undefined,page,size:20}),
-  } as any);
+  });
   const {data:depts}=useQuery({queryKey:['departments'],queryFn:()=>orgApi.getDepartments()});
   const {data:roles}=useQuery({queryKey:['roles'],queryFn:()=>rolesApi.getRoles()});
 
@@ -1190,7 +1190,7 @@ export function RolesPage(){
   const {data:roles,isLoading}=useQuery({queryKey:['roles','all'],queryFn:()=>rolesApi.getRoles()});
 
   const createRole=useMutation({
-    mutationFn:()=>rolesApi.createRole({name:form.name,level:parseInt(form.level),description:form.description} as any),
+    mutationFn:()=>rolesApi.createRole({name:form.name,level:parseInt(form.level),description:form.description}),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['roles']});setAddModal(false);setForm({name:'',level:'1',description:''});toast.success('Role created');},
     onError:(e: ApiError)=>toast.error('Failed',e?.detail),
   });
@@ -1845,7 +1845,7 @@ export function AuditPage(){
   const {data,isLoading}=useQuery({
     queryKey:['audit',actionFilter,page],
     queryFn:()=>auditApi.list({action:actionFilter||undefined,page}),
-  } as any);
+  });
 
   const exportCSV=()=>auditApi.exportCSV().then((blob:any)=>{const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='opsyn-audit.csv';a.click();URL.revokeObjectURL(url);}).catch(()=>{});
 
@@ -1941,7 +1941,7 @@ export function InfrastructurePage(){
     onError:(e: ApiError)=>toast.error('Failed',e?.detail),
   });
   const createRoute=useMutation({
-    mutationFn:()=>infrastructureApi.createRoute({...routeForm,length_km:routeForm.length_km?parseFloat(routeForm.length_km):undefined,capacity_gbps:routeForm.capacity_gbps?parseFloat(routeForm.capacity_gbps):undefined} as any),
+    mutationFn:()=>infrastructureApi.createRoute({...routeForm,length_km:routeForm.length_km?parseFloat(routeForm.length_km):undefined,capacity_gbps:routeForm.capacity_gbps?parseFloat(routeForm.capacity_gbps):undefined}),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['infra']});setRouteModal(false);setRouteForm({from_node_id:'',to_node_id:'',cable_type:'',length_km:'',capacity_gbps:'',status:'active'});toast.success('Route created');},
     onError:(e: ApiError)=>toast.error('Failed',e?.detail),
   });

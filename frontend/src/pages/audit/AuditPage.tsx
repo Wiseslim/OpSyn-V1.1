@@ -41,7 +41,7 @@ export default function AuditPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['audit', actionFilter, page],
     queryFn:  () => auditApi.list({ action: actionFilter || undefined, page }),
-  } as any);
+  });
 
   const exportCSV = () =>
     auditApi.exportCSV()

@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { staffApi, orgApi, rolesApi } from '../../api/index';
+import type { CreateStaffRequest, StaffStatus } from '@shared';
 import { useUIStore } from '../../store/ui.store';
 import { Button, Input, Select } from '../../components/ui';
 import type { ApiError } from '../../api/client';
@@ -27,7 +28,20 @@ export default function StaffCreatePage() {
   const navigate = useNavigate();
 
   const [step, setStep] = useState(0);
-  const [form, setForm] = useState({
+  // Typed to the request contract: the fields below are unions on
+  // CreateStaffRequest, and inferring them as plain `string` is what made
+  // the argument mismatches on this page invisible.
+  const [form, setForm] = useState<{
+    first_name: string; last_name: string; email: string; phone: string;
+    department_id: string; team_id: string; region_id: string;
+    role_id: string; password: string;
+    start_date: string; job_title: string; status: StaffStatus;
+    invite_method: 'email' | 'password';
+    scope_level: CreateStaffRequest['scope_level'];
+    employment_type: 'permanent' | 'contract' | 'intern';
+    approval_authority_level: number;
+    allowed_dashboards: string[];
+  }>({
     first_name: '', last_name: '', email: '', phone: '',
     department_id: '', team_id: '', region_id: '',
     role_id: '', invite_method: 'email', password: '',
@@ -36,7 +50,7 @@ export default function StaffCreatePage() {
     // Required access fields with safe defaults to prevent 422
     scope_level: 'department',
     approval_authority_level: 0,
-    allowed_dashboards: [] as string[],
+    allowed_dashboards: [],
     employment_type: 'permanent',
   });
 
@@ -45,12 +59,12 @@ export default function StaffCreatePage() {
     queryKey: ['teams', form.department_id],
     queryFn:  () => orgApi.getTeams(form.department_id),
     enabled:  !!form.department_id,
-  } as any);
-  const { data: regions } = useQuery({ queryKey: ['regions'], queryFn: () => orgApi.getRegions() } as any);
+  });
+  const { data: regions } = useQuery({ queryKey: ['regions'], queryFn: () => orgApi.getRegions() });
   const { data: roles }   = useQuery({
     queryKey: ['roles-assignable'],
     queryFn:  () => rolesApi.getRoles(true),
-  } as any);
+  });
 
   const create = useMutation({
     mutationFn: () => staffApi.create({
@@ -59,7 +73,7 @@ export default function StaffCreatePage() {
       approval_authority_level: parseInt(String(form.approval_authority_level ?? 0), 10) || 0,
       allowed_dashboards: Array.isArray(form.allowed_dashboards) ? form.allowed_dashboards : [],
       scope_level: form.scope_level || 'department',
-      employment_type: (form.employment_type || 'permanent') as 'permanent' | 'contract' | 'intern',
+      employment_type: form.employment_type || 'permanent',
       username: form.email.split('@')[0],
       temporary_password: form.invite_method === 'password' ? form.password : undefined,
       joined_at: form.start_date || undefined,
@@ -68,7 +82,7 @@ export default function StaffCreatePage() {
       region_id:        form.region_id        || undefined,
       phone:            form.phone            || undefined,
       job_title:        form.job_title        || undefined,
-    } as any),
+    }),
     onSuccess: () => { toast.success('Staff created', `${form.first_name} ${form.last_name} has been added`); navigate('/staff'); },
     onError: (e: ApiError) => {
       const detail = e?.response?.data?.detail;

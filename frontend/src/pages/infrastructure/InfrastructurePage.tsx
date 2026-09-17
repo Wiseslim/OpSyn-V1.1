@@ -275,7 +275,7 @@ export default function InfrastructurePage() {
       ...routeForm,
       length_km:     routeForm.length_km     ? parseFloat(routeForm.length_km)     : undefined,
       capacity_gbps: routeForm.capacity_gbps ? parseFloat(routeForm.capacity_gbps) : undefined,
-    } as any),
+    }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['infra'] }); setRouteModal(false); setRouteForm({ from_node_id: '', to_node_id: '', cable_type: '', length_km: '', capacity_gbps: '', status: 'active' }); toast.success('Route created'); },
     onError: (e: ApiError) => toast.error('Failed', e?.detail),
   });

@@ -54,7 +54,7 @@ export default function ActivityPage() {
     queryKey:        ['activity', entityFilter, page],
     queryFn:         () => activityApi.getGlobalFeed({ entity_type: entityFilter || undefined, page, size: 50 }),
     refetchInterval: 30000,
-  } as any);
+  });
 
   const items = (data as any)?.items ?? [];
   const total = (data as any)?.total ?? 0;
