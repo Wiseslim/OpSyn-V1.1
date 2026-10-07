@@ -300,12 +300,12 @@ async def advance_stage(project_id: uuid.UUID, comment: str | None, db: AsyncSes
                 after_next_stage.status = "active"
                 after_next_stage.entered_at = datetime.utcnow()
 
-        project.current_stage_id = next_stage.id
+        project.current_stage = next_stage
     else:
         # No more stages
         project.pipeline_status = "completed"
         project.pipeline_completed_at = datetime.utcnow()
-        project.current_stage_id = None
+        project.current_stage = None
 
     await db.flush()
 
@@ -428,7 +428,7 @@ async def push_back_stage(project_id: uuid.UUID, reason: str, comment: str | Non
     prev_stage.status = "active"
     prev_stage.exited_at = None
     prev_stage.approved_by = None
-    project.current_stage_id = prev_stage.id
+    project.current_stage = prev_stage
 
     await db.flush()
 

@@ -10,6 +10,9 @@ import { tasksApi } from '../../api/tasks.api';
 import { useUIStore } from '../../store/ui.store';
 import { usePermissions } from '../../hooks/usePermissions';
 import type { ApiError } from '../../api/client';
+import { GlassModal } from '../../components/glass';
+import { PageHeader } from '../../components/layout/Page';
+import { Badge } from '../../components/ui';
 
 function useToast() {
   const { addToast } = useUIStore();
@@ -95,28 +98,13 @@ export default function DeletedTasksPage() {
       {/* Header */}
       <div style={{
         padding: '14px 24px', borderBottom: '1px solid var(--color-border)',
-        background: 'white', flexShrink: 0,
+        background: 'var(--surface)', flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <h1 style={{
-              fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 800,
-              color: 'var(--color-text-primary)', letterSpacing: '-.03em', margin: 0,
-            }}>
-              Deleted Tasks
-            </h1>
-            <p style={{ fontSize: 11, color: 'var(--color-text-muted)', margin: '3px 0 0' }}>
-              Soft-deleted tasks. Admins can restore or permanently purge.
-            </p>
-          </div>
-          <div style={{
-            padding: '4px 12px', borderRadius: 20,
-            background: 'rgba(220,38,38,.08)', border: '1px solid rgba(220,38,38,.2)',
-            fontSize: 12, fontWeight: 700, color: 'var(--color-red)',
-          }}>
-            {total} deleted
-          </div>
-        </div>
+        <PageHeader
+          title="Deleted tasks"
+          lede="Soft-deleted tasks. Admins can restore or permanently purge."
+          meta={<Badge tone="critical" size="sm">{total} deleted</Badge>}
+        />
       </div>
 
       {/* Task list */}
@@ -137,7 +125,7 @@ export default function DeletedTasksPage() {
               <div
                 key={t.id}
                 style={{
-                  background: 'white',
+                  background: 'var(--surface)',
                   border: '1px solid var(--color-border)',
                   borderLeft: '4px solid var(--color-red)',
                   borderRadius: 'var(--radius-card)',
@@ -224,7 +212,7 @@ export default function DeletedTasksPage() {
                 padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600,
                 cursor: page <= 1 ? 'not-allowed' : 'pointer',
                 border: '1px solid var(--color-border)',
-                background: 'white', color: 'var(--color-text-primary)',
+                background: 'var(--surface)', color: 'var(--color-text-primary)',
                 opacity: page <= 1 ? 0.4 : 1,
               }}
             >
@@ -240,7 +228,7 @@ export default function DeletedTasksPage() {
                 padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600,
                 cursor: page >= pages ? 'not-allowed' : 'pointer',
                 border: '1px solid var(--color-border)',
-                background: 'white', color: 'var(--color-text-primary)',
+                background: 'var(--surface)', color: 'var(--color-text-primary)',
                 opacity: page >= pages ? 0.4 : 1,
               }}
             >
@@ -252,20 +240,7 @@ export default function DeletedTasksPage() {
 
       {/* Purge confirmation dialog */}
       {purgeTarget && (
-        <div
-          onClick={e => e.target === e.currentTarget && !purge.isPending && setPurgeTarget(null)}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 500,
-            background: 'rgba(2,4,12,.85)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            backdropFilter: 'blur(4px)',
-          }}
-        >
-          <div style={{
-            background: 'white', border: '2px solid rgba(220,38,38,.4)',
-            borderRadius: 14, padding: 24, width: '100%', maxWidth: 400,
-            boxShadow: '0 24px 64px rgba(0,0,0,.5)',
-          }}>
+        <GlassModal open onClose={() => { if (!purge.isPending) setPurgeTarget(null); }} ariaLabel="Permanently delete task" size="sm">
             <div style={{ fontSize: 28, marginBottom: 12, textAlign: 'center' }}>☠</div>
             <div style={{
               fontSize: 15, fontWeight: 800, textAlign: 'center',
@@ -305,8 +280,7 @@ export default function DeletedTasksPage() {
                 {purge.isPending ? 'Purging…' : 'Yes, Purge Permanently'}
               </button>
             </div>
-          </div>
-        </div>
+          </GlassModal>
       )}
     </div>
   );

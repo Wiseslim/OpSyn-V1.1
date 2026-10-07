@@ -6,6 +6,8 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { auditApi } from '../../api/index';
 import { Button, DataTable, Pagination, type Column } from '../../components/ui';
+import { GlassSelect } from '../../components/glass';
+import { Page, PageHeader } from '../../components/layout/Page';
 
 const AC: Record<string, string> = {
   'staff.created':        'var(--color-green)',
@@ -108,37 +110,18 @@ export default function AuditPage() {
   ];
 
   return (
-    <div style={{ overflow: 'auto', flex: 1, background: 'var(--color-surface)' }}>
-      <div style={{ padding: '20px 24px' }}>
+    <Page>
 
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
-          <div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: 'var(--color-text-primary)', letterSpacing: '-.03em', margin: 0 }}>
-              Audit Logs
-            </h1>
-            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, marginBottom: 0 }}>
-              Immutable record · {total} total events
-            </p>
-          </div>
-          <Button variant="secondary" size="sm" onClick={exportCSV}>Export CSV</Button>
-        </div>
+        <PageHeader
+        title="Audit Logs"
+        lede={<>Immutable record · {total} total events</>}
+        primary={<Button variant="secondary" size="sm" onClick={exportCSV}>Export CSV</Button>}
+      />
 
         {/* Filter */}
         <div style={{ marginBottom: 16 }}>
-          <select
-            value={actionFilter}
-            onChange={e => { setActionFilter(e.target.value); setPage(1); }}
-            style={{
-              background: 'white', border: '1px solid var(--color-border)',
-              borderRadius: 8, color: 'var(--color-text-primary)',
-              padding: '7px 10px', fontFamily: 'var(--font-body)', fontSize: 12,
-              cursor: 'pointer', outline: 'none',
-            }}
-          >
-            <option value="">All Actions</option>
-            {ACTION_OPTS.map(a => <option key={a} value={a}>{a}</option>)}
-          </select>
+          <GlassSelect value={String(actionFilter)} onChange={v => { setActionFilter(v); setPage(1); }} options={[...ACTION_OPTS.map((a) => ({ value: String(a), label: String(a) }))]} placeholder={'All Actions'} ariaLabel="Filter by action" compact />
         </div>
 
         <DataTable
@@ -153,7 +136,7 @@ export default function AuditPage() {
         <div style={{ marginTop: 12 }}>
           <Pagination page={page} pageSize={20} total={total} onPage={setPage} />
         </div>
-      </div>
-    </div>
+      
+    </Page>
   );
 }

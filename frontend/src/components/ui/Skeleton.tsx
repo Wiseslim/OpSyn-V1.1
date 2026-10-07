@@ -78,7 +78,7 @@ export function Skeleton({
 export function SkeletonCard({ style }: { style?: React.CSSProperties }) {
   return (
     <div style={{
-      background:   'white',
+      background:   'var(--surface)',
       border:       '1px solid var(--color-border)',
       borderRadius: 'var(--radius-card)',
       padding:      16,

@@ -11,6 +11,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { formsApi } from '../../api/index';
 import type { FormField, FormContext } from '@shared';
 import type { ApiError } from '../../api/client';
+import { GlassModal, GlassSelect } from '../../components/glass';
 
 // ── Shared primitives ─────────────────────────────────────────
 
@@ -47,11 +48,7 @@ function Sel({ label, value, onChange, options }: any) {
   return (
     <div style={{ marginBottom: 12 }}>
       <label style={LABEL_STYLE}>{label}</label>
-      <select value={value} onChange={e => onChange(e.target.value)} style={{ ...INPUT_STYLE, cursor: 'pointer' }}>
-        {options.map((o: any) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
+      <GlassSelect value={String(value)} onChange={v => onChange(v)} options={[...options.map((o: any) => ({ value: String(o.value), label: String(o.label) }))]} ariaLabel={label} />
     </div>
   );
 }
@@ -446,14 +443,7 @@ export default function FormBuilderPage() {
 
       {/* ── Field add/edit drawer ── */}
       {(addOpen || editField) && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(5,8,16,.7)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
-        }} onClick={e => { if (e.target === e.currentTarget) { setAddOpen(false); setEditField(null); } }}>
-          <div style={{
-            background: 'var(--bg2)', border: '1px solid var(--wire)',
-            borderRadius: 12, padding: 24, width: 420, maxHeight: '80vh', overflowY: 'auto',
-          }}>
+        <GlassModal open onClose={() => { setAddOpen(false); setEditField(null); }} ariaLabel="Field editor" size="sm">
             <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--chalk)', marginBottom: 16 }}>
               {editField ? 'Edit Field' : 'Add Field'}
             </div>
@@ -497,7 +487,7 @@ export default function FormBuilderPage() {
                   position: 'relative', cursor: 'pointer', transition: 'background .2s',
                 }}>
                 <div style={{
-                  width: 12, height: 12, borderRadius: '50%', background: '#fff',
+                  width: 12, height: 12, borderRadius: '50%', background: 'var(--surface)',
                   position: 'absolute', top: 3,
                   left: draft.required ? 19 : 3, transition: 'left .2s',
                 }} />
@@ -517,20 +507,12 @@ export default function FormBuilderPage() {
                 {isBusy ? 'Saving…' : editField ? 'Save Changes' : 'Add Field'}
               </Btn>
             </div>
-          </div>
-        </div>
+          </GlassModal>
       )}
 
       {/* ── Dependency add drawer ── */}
       {depOpen && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(5,8,16,.7)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
-        }} onClick={e => { if (e.target === e.currentTarget) setDepOpen(false); }}>
-          <div style={{
-            background: 'var(--bg2)', border: '1px solid var(--wire)',
-            borderRadius: 12, padding: 24, width: 380,
-          }}>
+        <GlassModal open onClose={() => setDepOpen(false)} ariaLabel="Add dependency" size="sm">
             <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--chalk)', marginBottom: 16 }}>
               Add Conditional Rule
             </div>
@@ -563,8 +545,7 @@ export default function FormBuilderPage() {
                 {addDep.isPending ? 'Adding…' : 'Add Rule'}
               </Btn>
             </div>
-          </div>
-        </div>
+          </GlassModal>
       )}
     </div>
   );

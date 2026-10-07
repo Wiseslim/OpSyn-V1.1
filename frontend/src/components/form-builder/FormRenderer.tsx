@@ -19,6 +19,7 @@ import {
   type ValidationError,
   type ValidationWarning,
 } from '../../api/form-builder.api';
+import { GlassSelect } from '../../components/glass';
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -389,7 +390,7 @@ function FieldInput({
               position: 'absolute', top: 3,
               left: value ? 18 : 3,
               width: 14, height: 14, borderRadius: 7,
-              background: 'white', transition: 'left 150ms',
+              background: 'var(--surface)', transition: 'left 150ms',
             }} />
           </div>
           {value ? 'Yes' : 'No'}
@@ -463,15 +464,7 @@ function FieldInput({
 
     case 'enum':
       return (
-        <select
-          style={{ ...s, cursor: disabled ? 'default' : 'pointer' }}
-          value={String(value ?? '')}
-          disabled={disabled}
-          onChange={e => onChange(e.target.value || null)}
-        >
-          <option value="">{field.placeholder ?? '— Select —'}</option>
-          {opts.map(o => <option key={o} value={o}>{o}</option>)}
-        </select>
+        <GlassSelect value={String(value ?? '')} onChange={v => onChange(v || null)} options={[...opts.map((o) => ({ value: String(o), label: String(o) }))]} placeholder={String(field.placeholder ?? '— Select —')} disabled={disabled} ariaLabel={field.label} />
       );
 
     case 'multiselect':
@@ -1094,7 +1087,7 @@ function primaryBtnStyle(disabled: boolean): React.CSSProperties {
   return {
     padding: '8px 22px', borderRadius: 6,
     border: 'none',
-    background: 'var(--color-teal)',
+    background: 'var(--brand)',
     color: 'var(--color-navy)',
     fontFamily: 'var(--font-display)',
     fontSize: 13, fontWeight: 700,

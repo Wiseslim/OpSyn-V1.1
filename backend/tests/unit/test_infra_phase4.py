@@ -228,6 +228,17 @@ class TestDeletionSessionCreation:
         db.add    = MagicMock()
         db.commit = AsyncMock()
 
+        # The upload endpoint also walks the splitter hierarchy to build the
+        # cascade preview, which is a second db.execute(). A bare AsyncMock
+        # returns an AsyncMock from db.execute(), whose .scalars() is itself
+        # async and blows up on .all(). Give it a Result-shaped chain; this
+        # scenario has no dependants.
+        _rows = MagicMock()
+        _rows.scalars.return_value.all.return_value = []
+        _rows.all.return_value = []
+        _rows.first.return_value = None
+        db.execute = AsyncMock(return_value=_rows)
+
         async def _refresh(obj):
             obj.id             = session_id
             obj.matched_rows   = 1

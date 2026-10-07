@@ -40,6 +40,9 @@ const InfrastructureSettingsPage  = lazy(() => import('./pages/infrastructure/In
 const InfrastructureUploadPage    = lazy(() => import('./pages/infrastructure/InfrastructureUploadPage'));
 const InfrastructureDeletionPage  = lazy(() => import('./pages/infrastructure/InfrastructureDeletionPage'));
 const InfrastructureAuditPage     = lazy(() => import('./pages/infrastructure/InfrastructureAuditPage'));
+const FttxDesignerListPage        = lazy(() => import('./pages/fttx-designer/FttxDesignerListPage'));
+const FttxDesignerWizardPage      = lazy(() => import('./pages/fttx-designer/FttxDesignerWizardPage'));
+const NetworkMapPage              = lazy(() => import('./features/network-map/NetworkMapPage'));
 const RegisterPage                = lazy(() => import('./pages/auth/RegisterPage'));
 const FirstRunWizard              = lazy(() => import('./pages/onboarding/FirstRunWizard'));
 const CustomersPage               = lazy(() => import('./pages/customers/CustomersPage'));
@@ -48,6 +51,7 @@ const CustomerFormBuilderPage     = lazy(() => import('./pages/customers/Custome
 const FormBuilderNewPage          = lazy(() => import('./pages/form-builder/FormBuilderNewPage'));
 const FormPreviewPage             = lazy(() => import('./pages/form-builder/FormPreviewPage'));
 const FormSubmissionsPage         = lazy(() => import('./pages/form-builder/FormSubmissionsPage'));
+const SchemaMigrationsPage        = lazy(() => import('./pages/form-builder/SchemaMigrationsPage'));
 
 // ── Query client with sensible defaults ────────────────────
 const queryClient = new QueryClient({
@@ -128,6 +132,9 @@ export default function App() {
               <Route path="infrastructure/deletion"  element={<InfrastructureDeletionPage />} />
               <Route path="infrastructure/settings"  element={<InfrastructureSettingsPage />} />
               <Route path="infrastructure/audit"     element={<InfrastructureAuditPage />} />
+              <Route path="fttx-designer"            element={<FttxDesignerListPage />} />
+              <Route path="fttx-designer/:runId"     element={<FttxDesignerWizardPage />} />
+              <Route path="network"                  element={<NetworkMapPage />} />
               <Route path="settings"                  element={<SettingsPage />} />
               <Route path="settings/forms/:context"  element={<FormBuilderPage />} />
               <Route path="activity"                 element={<ActivityPage />} />
@@ -138,7 +145,8 @@ export default function App() {
               <Route path="form-builder"                              element={<FormBuilderNewPage />} />
               <Route path="form-builder/:schemaId"              element={<FormBuilderNewPage />} />
               <Route path="form-builder/:schemaId/preview"      element={<FormPreviewPage />} />
-              <Route path="form-builder/:schemaId/submissions"  element={<FormSubmissionsPage />} />
+<Route path="form-builder/:schemaId/submissions"       element={<FormSubmissionsPage />} />
+              <Route path="form-builder/:schemaId/migrations"        element={<SchemaMigrationsPage />} />
             </Route>
 
             {/* ── 404 fallback ── */}

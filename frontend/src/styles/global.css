@@ -1,7 +1,13 @@
 /* ============================================================
-   OPSYN GLOBAL STYLES
-   Import after design-tokens.css and brand.css
+   OPSYN GLOBAL STYLES — element defaults and app-wide behaviour.
+   Every value comes from tokens.css (imported first in main.tsx).
+   Component styling lives in *.module.css next to each component.
    ============================================================ */
+
+/* Layered: component CSS modules are unlayered and therefore always win over
+   these rules, whatever order the stylesheets load in. Order: tokens.css. */
+@layer base {
+
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -14,102 +20,86 @@ html, #root {
   overflow: hidden;
 }
 
-/* Base body — uses Stage 1 design tokens as single source of truth */
 body {
   height: 100%;
-  font-family: var(--font-body);
-  background: var(--color-surface);
-  color: var(--color-text-primary);
-  font-size: 13px;
-  line-height: 1.5;
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  line-height: var(--leading-body);
+  background: var(--canvas);
+  color: var(--text-primary);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* ── Monospace utility — ticket numbers, code, CLI output ── */
-.font-mono {
-  font-family: var(--font-mono);
-  letter-spacing: 0.02em;
+#root { position: relative; }
+
+/* Portaled UI (menus, popovers, modals) renders here — a sibling of #root,
+   so no stacking context or backdrop-filter inside the app can trap it. */
+#overlay-root {
+  position: relative;
+  z-index: var(--z-overlay);
 }
 
-/* ── Grid texture overlay ── */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background-image:
-    linear-gradient(rgba(6,182,212,0.018) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(6,182,212,0.018) 1px, transparent 1px);
-  background-size: 40px 40px;
+/* Numbers line up: tables, inputs and anything marked data-numeric */
+table, input[type='number'], [data-numeric] {
+  font-variant-numeric: tabular-nums;
 }
 
-#root { position: relative; z-index: 1; }
+/* Form controls inherit the interface font instead of the UA default */
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
 
 /* ── Scrollbars ── */
-::-webkit-scrollbar          { width: 4px; height: 4px; }
+::-webkit-scrollbar          { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track    { background: transparent; }
-::-webkit-scrollbar-thumb    { background: var(--color-border); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
-* { scrollbar-width: thin; scrollbar-color: var(--color-border) transparent; }
+::-webkit-scrollbar-thumb    { background: var(--border-strong); border-radius: var(--radius-full); border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); background-clip: padding-box; }
+* { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
 
-/* ── Focus ── */
+/* ── Focus — visible on every surface, never altering element shape ── */
 :focus-visible {
-  outline: 2px solid var(--color-teal);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
-  border-radius: 4px;
+}
+/* Older pages still set `outline: 'none'` inline on inputs and buttons, which
+   beats the rule above and leaves keyboard users with no focus indicator.
+   Give it back without touching each call site. */
+[style*='outline: none']:focus-visible,
+[style*='outline: 0']:focus-visible {
+  outline: 2px solid var(--focus-ring) !important;
+  outline-offset: 2px !important;
 }
 
 /* ── Selection ── */
 ::selection {
-  background: rgba(0,194,168,0.20);
-  color: var(--color-text-primary);
+  background: var(--surface-selected);
+  color: var(--text-primary);
 }
 
-/* ── Links ── */
-a { color: var(--color-teal); text-decoration: none; }
+/* ── Visually hidden, still announced (labels for icon-only columns etc.) ── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Links — teal as text uses the contrast-safe accent, not the brand fill ── */
+a { color: var(--accent-text); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-/* ── Brand text gradient ── */
-.brand-text {
-  background: var(--color-teal);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
+/* The app shell's layout lives in layouts/Shell.module.css */
 
-/* ── App shell — CSS Grid (Stage 2) ── */
-.app-shell {
-  display: grid;
-  grid-template-rows: var(--topbar-height) var(--intelstrip-height) 1fr;
-  grid-template-columns: var(--rail-width) 1fr;
-  grid-template-areas: 'rail topbar' 'rail intelstrip' 'rail content';
-  height: 100vh;
-  overflow: hidden;
-}
-
-/* Legacy helpers kept for any page that still references them */
-.main-area {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-width: 0;
-}
-.page-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
-}
-
-/* ── Rail tooltip — pure CSS, no JS ── */
-.rail-item-wrapper .rail-tooltip { opacity: 0; transition: opacity 100ms; }
-.rail-item-wrapper:hover .rail-tooltip { opacity: 1; }
-/* Hide tooltips while drawer is expanded */
-.drawer-open .rail-tooltip { opacity: 0 !important; }
-
-/* ── Animations ── */
+/* ── Keyframes (referenced by name from component styles) ── */
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: none; }
@@ -123,8 +113,8 @@ a:hover { text-decoration: underline; }
   to   { opacity: 1; transform: none; }
 }
 @keyframes pulse {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(74,222,128,0.4); }
-  50%       { opacity: 0.7; box-shadow: 0 0 0 6px rgba(74,222,128,0); }
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
 }
 @keyframes spin {
   from { transform: rotate(0deg); }
@@ -142,23 +132,37 @@ a:hover { text-decoration: underline; }
   from { width: 0; opacity: 0; }
   to   { opacity: 1; }
 }
-
-/* ── Live incident pulse — critical outage markers, SLA breach ── */
-@keyframes incidentPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.6); }
-  50%       { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
-}
-
-/* ── Shimmer skeleton loader ── */
 @keyframes shimmer {
   from { background-position: -200% 0; }
   to   { background-position:  200% 0; }
 }
 
-.animate-fade-up  { animation: fadeUp  0.22s ease both; }
-.animate-fade-in  { animation: fadeIn  0.18s ease both; }
-.animate-slide-in { animation: slideIn 0.22s ease both; }
-.animate-card-in  { animation: cardIn  0.22s ease both; }
-
-/* .is-live — apply to any element representing an active incident */
+/* Live incident pulse — reserved for unacknowledged critical alarms */
+@keyframes incidentPulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-critical-fg) 60%, transparent); }
+  50%       { box-shadow: 0 0 0 8px transparent; }
+}
 .is-live { animation: incidentPulse 1.8s ease-in-out infinite; }
+
+/* ── Reduced motion: honoured everywhere, including the live pulse ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Forced colours (Windows High Contrast): keep focus and edges visible ── */
+@media (forced-colors: active) {
+  :focus-visible { outline-color: Highlight; }
+  .is-live { outline: 2px solid CanvasText; }
+}
+
+/* OSM Dark basemap: OpenStreetMap tiles darkened to sit on the console
+   surface (lib/basemap.ts). Inverting then rotating hue keeps water blue
+   and parks green; the dimming keeps roads legible under asset markers. */
+.opsyn-tiles-dark { filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.85) saturate(0.55); }
+
+} /* end @layer base */

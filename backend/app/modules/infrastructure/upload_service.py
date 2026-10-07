@@ -20,10 +20,11 @@ import hashlib
 import io
 import uuid
 import datetime
+from decimal import Decimal
 from typing import Any
 
 import openpyxl
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,7 +34,7 @@ from app.modules.infrastructure.models import (
 )
 from app.modules.staff.models import User
 from app.modules.infrastructure.gis_utils import (
-    validate_coordinates, make_point, warn_zero_island,
+    validate_coordinates, make_point, normalize_coordinate,
 )
 from app.modules.infrastructure.schemas import (
     FileValidationResult, HeaderValidationResult,
@@ -189,15 +190,61 @@ def _get_int(
     return i, None
 
 
-def _get_float(row_dict: dict, key: str) -> tuple[float | None, str | None]:
-    """Return (value, error) for a required float field."""
-    val = row_dict.get(key)
-    if val is None or str(val).strip() == "":
-        return None, f"'{key}' is required"
-    try:
-        return float(str(val).strip()), None
-    except (TypeError, ValueError):
-        return None, f"'{key}' must be a valid number (got '{val}')"
+def _get_decimal(
+    row_dict: dict, key: str,
+) -> tuple["Decimal | None", str | None, str | None]:
+    """Return (value, error, warning) for a coordinate column.
+
+    Parses to Decimal at the column's stored precision so the validated
+    value is bit-for-bit what the database will hold.
+    """
+    return normalize_coordinate(row_dict.get(key), field=key)
+
+
+def _validate_coordinates_row(
+    row_dict: dict,
+    errors: list[dict],
+    warnings: list[str],
+) -> None:
+    """Shared longitude/latitude check for every asset row type.
+
+    Writes the normalised Decimals back into row_dict so the commit step
+    stores exactly the value that was validated — validating a rounded
+    float and then storing an unrounded one is how the two drift apart.
+    """
+    lng, lng_err, lng_warn = _get_decimal(row_dict, "longitude")
+    lat, lat_err, lat_warn = _get_decimal(row_dict, "latitude")
+
+    if lng_err:
+        errors.append({"field": "longitude", "value": row_dict.get("longitude"), "error": lng_err})
+    if lat_err:
+        errors.append({"field": "latitude", "value": row_dict.get("latitude"), "error": lat_err})
+    if lng_warn:
+        warnings.append(lng_warn)
+    if lat_warn:
+        warnings.append(lat_warn)
+
+    if lng is not None and lat is not None:
+        _, coord_errs = validate_coordinates(lng, lat)
+        for ce in coord_errs:
+            # validate_coordinates phrases messages in full ("Longitude
+            # must be..."), so match case-insensitively — the previous
+            # substring test only worked because the capital happened to
+            # line up.
+            field = "longitude" if "ongitude" in ce.lower() else "latitude"
+            errors.append({"field": field, "value": None, "error": ce})
+
+    if lng is not None and lat is None and not lng_err:
+        errors.append({"field": "latitude", "value": row_dict.get("latitude"),
+                       "error": "'latitude' is required"})
+    if lat is not None and lng is None and not lng_err:
+        errors.append({"field": "longitude", "value": row_dict.get("longitude"),
+                       "error": "'longitude' is required"})
+
+    if lng is not None:
+        row_dict["longitude"] = str(lng)
+    if lat is not None:
+        row_dict["latitude"] = str(lat)
 
 
 def validate_row_splitter(row_dict: dict) -> RowValidationResult:
@@ -220,31 +267,55 @@ def validate_row_splitter(row_dict: dict) -> RowValidationResult:
     if err:
         errors.append({"field": "output", "value": row_dict.get("output"), "error": err})
 
-    # splitter_level — CASE-SENSITIVE enum
-    level = row_dict.get("splitter_level")
-    if level is None or str(level).strip() == "":
+    # splitter_level — normalize to canonical form (case-insensitive)
+    level_raw = row_dict.get("splitter_level")
+    if level_raw is None or str(level_raw).strip() == "":
         errors.append({
-            "field": "splitter_level", "value": level,
+            "field": "splitter_level", "value": level_raw,
             "error": "splitter_level is required",
         })
-    elif str(level) not in ("First-Level", "Second-Level"):
-        errors.append({
-            "field": "splitter_level", "value": level,
-            "error": "splitter_level must be exactly 'First-Level' or 'Second-Level'",
-        })
+        level = None
+    else:
+        level_normalized = str(level_raw).strip().lower()
+        if level_normalized in ("first-level", "first level"):
+            level = "First-Level"
+        elif level_normalized in ("second-level", "second level"):
+            level = "Second-Level"
+        else:
+            errors.append({
+                "field": "splitter_level", "value": level_raw,
+                "error": "splitter_level must be 'First-Level' or 'Second-Level' (case-insensitive)",
+            })
+            level = None
 
-    # splitter_type — CASE-SENSITIVE enum
-    stype = row_dict.get("splitter_type")
-    if stype is None or str(stype).strip() == "":
+    # Update row_dict with normalized value
+    if level:
+        row_dict["splitter_level"] = level
+
+    # splitter_type — normalize to canonical form (case-insensitive)
+    stype_raw = row_dict.get("splitter_type")
+    if stype_raw is None or str(stype_raw).strip() == "":
         errors.append({
-            "field": "splitter_type", "value": stype,
+            "field": "splitter_type", "value": stype_raw,
             "error": "splitter_type is required",
         })
-    elif str(stype) not in ("PCC", "Legacy"):
-        errors.append({
-            "field": "splitter_type", "value": stype,
-            "error": "splitter_type must be exactly 'PCC' or 'Legacy'",
-        })
+        stype = None
+    else:
+        stype_normalized = str(stype_raw).strip().upper()
+        if stype_normalized == "PCC":
+            stype = "PCC"
+        elif stype_normalized == "LEGACY":
+            stype = "Legacy"
+        else:
+            errors.append({
+                "field": "splitter_type", "value": stype_raw,
+                "error": "splitter_type must be 'PCC' or 'Legacy' (case-insensitive)",
+            })
+            stype = None
+
+    # Update row_dict with normalized value
+    if stype:
+        row_dict["splitter_type"] = stype
 
     # number_customer — optional, but must be int >= 0 if present
     nc_raw = row_dict.get("number_customer")
@@ -254,20 +325,7 @@ def validate_row_splitter(row_dict: dict) -> RowValidationResult:
             errors.append({"field": "number_customer", "value": nc_raw, "error": err})
 
     # coordinates
-    lng, lng_err = _get_float(row_dict, "longitude")
-    lat, lat_err = _get_float(row_dict, "latitude")
-    if lng_err:
-        errors.append({"field": "longitude", "value": row_dict.get("longitude"), "error": lng_err})
-    if lat_err:
-        errors.append({"field": "latitude", "value": row_dict.get("latitude"), "error": lat_err})
-
-    if lng is not None and lat is not None:
-        coord_valid, coord_errs = validate_coordinates(lng, lat)
-        for ce in coord_errs:
-            field = "longitude" if "ongitude" in ce else "latitude"
-            errors.append({"field": field, "value": None, "error": ce})
-        if warn_zero_island(lng, lat):
-            warnings.append("Coordinates (0, 0) may indicate missing data")
+    _validate_coordinates_row(row_dict, errors, warnings)
 
     return RowValidationResult(valid=len(errors) == 0, errors=errors, warnings=warnings)
 
@@ -289,20 +347,8 @@ def validate_row_cabinet(row_dict: dict) -> RowValidationResult:
     if err:
         errors.append({"field": "number_tray", "value": row_dict.get("number_tray"), "error": err})
 
-    lng, lng_err = _get_float(row_dict, "longitude")
-    lat, lat_err = _get_float(row_dict, "latitude")
-    if lng_err:
-        errors.append({"field": "longitude", "value": row_dict.get("longitude"), "error": lng_err})
-    if lat_err:
-        errors.append({"field": "latitude", "value": row_dict.get("latitude"), "error": lat_err})
-
-    if lng is not None and lat is not None:
-        coord_valid, coord_errs = validate_coordinates(lng, lat)
-        for ce in coord_errs:
-            field = "longitude" if "ongitude" in ce else "latitude"
-            errors.append({"field": field, "value": None, "error": ce})
-        if warn_zero_island(lng, lat):
-            warnings.append("Coordinates (0, 0) may indicate missing data")
+    _validate_coordinates_row(row_dict, errors, warnings)
+    # (0, 0) is rejected by validate_coordinates — no separate warning
 
     return RowValidationResult(valid=len(errors) == 0, errors=errors, warnings=warnings)
 
@@ -331,20 +377,8 @@ def validate_row_olt(row_dict: dict) -> RowValidationResult:
         if err:
             errors.append({"field": "number_of_odf", "value": odf_raw, "error": err})
 
-    lng, lng_err = _get_float(row_dict, "longitude")
-    lat, lat_err = _get_float(row_dict, "latitude")
-    if lng_err:
-        errors.append({"field": "longitude", "value": row_dict.get("longitude"), "error": lng_err})
-    if lat_err:
-        errors.append({"field": "latitude", "value": row_dict.get("latitude"), "error": lat_err})
-
-    if lng is not None and lat is not None:
-        coord_valid, coord_errs = validate_coordinates(lng, lat)
-        for ce in coord_errs:
-            field = "longitude" if "ongitude" in ce else "latitude"
-            errors.append({"field": field, "value": None, "error": ce})
-        if warn_zero_island(lng, lat):
-            warnings.append("Coordinates (0, 0) may indicate missing data")
+    _validate_coordinates_row(row_dict, errors, warnings)
+    # (0, 0) is rejected by validate_coordinates — no separate warning
 
     return RowValidationResult(valid=len(errors) == 0, errors=errors, warnings=warnings)
 
@@ -354,9 +388,10 @@ def validate_row_olt(row_dict: dict) -> RowValidationResult:
 async def check_duplicate_splitter(
     db: AsyncSession, box_id: str, splitter_level: str, tenant_id: uuid.UUID
 ) -> bool:
+    """Check for duplicate splitter using case-insensitive box_id comparison."""
     result = await db.execute(
         select(SplitterBox.id).where(
-            SplitterBox.box_id == box_id,
+            func.lower(SplitterBox.box_id) == box_id.lower(),
             SplitterBox.splitter_level == splitter_level,
             SplitterBox.tenant_id == tenant_id,
             SplitterBox.is_deleted.is_(False),
@@ -368,9 +403,10 @@ async def check_duplicate_splitter(
 async def check_duplicate_cabinet(
     db: AsyncSession, cabinet_id: str, tenant_id: uuid.UUID
 ) -> bool:
+    """Check for duplicate cabinet using case-insensitive cabinet_id comparison."""
     result = await db.execute(
         select(Cabinet.id).where(
-            Cabinet.cabinet_id == cabinet_id,
+            func.lower(Cabinet.cabinet_id) == cabinet_id.lower(),
             Cabinet.tenant_id == tenant_id,
             Cabinet.is_deleted.is_(False),
         ).limit(1)
@@ -381,9 +417,10 @@ async def check_duplicate_cabinet(
 async def check_duplicate_olt(
     db: AsyncSession, name: str, tenant_id: uuid.UUID
 ) -> bool:
+    """Check for duplicate OLT using case-insensitive name comparison."""
     result = await db.execute(
         select(OLT.id).where(
-            OLT.name == name,
+            func.lower(OLT.name) == name.lower(),
             OLT.tenant_id == tenant_id,
             OLT.is_deleted.is_(False),
         ).limit(1)
@@ -437,6 +474,13 @@ async def run_full_validation(
     if session_obj is None:
         raise ValueError(f"Upload session {session_id} not found")
 
+    # Network plant types (poles, FATs, cables…) validate straight into
+    # net_assets / net_cables shape — Network GIS Phase 2.
+    from app.modules.network.upload import NET_UPLOAD_TYPES, validate_upload
+    if asset_type in NET_UPLOAD_TYPES:
+        return await validate_upload(db, session_obj, NET_UPLOAD_TYPES[asset_type],
+                                     filename, file_bytes, tenant_id)
+
     # Mark as validating
     session_obj.status = "validating"
     await db.flush()
@@ -480,22 +524,30 @@ async def run_full_validation(
         )
 
     # ── Row count guard (DoS protection) ─────────────────────
-    # ws.max_row is accurate for files written by openpyxl/Excel; we trust it
-    # because the file already passed MIME + parse checks above.
-    if ws.max_row is not None and ws.max_row - 1 > MAX_ROWS_PER_SHEET:
-        session_obj.status = "failed"
-        msg = (
-            f"File contains {ws.max_row - 1} data rows; "
-            f"maximum allowed is {MAX_ROWS_PER_SHEET}"
-        )
-        session_obj.validation_errors = [{"error": msg}]
-        await db.flush()
-        return ValidationSummary(
-            session_id=session_id, asset_type=asset_type, status="failed",
-            total_rows=ws.max_row - 1, valid_rows=0, duplicate_rows=0, error_rows=0,
-            warnings=0, errors=[{"row": 0, "field": "file", "error": msg}],
-            duplicates=[],
-        )
+    # Count actual data rows instead of trusting Excel metadata (ws.max_row can be spoofed)
+    actual_row_count = 0
+    for _ in ws.iter_rows(min_row=2, values_only=True):
+        actual_row_count += 1
+        if actual_row_count > MAX_ROWS_PER_SHEET:
+            session_obj.status = "failed"
+            msg = (
+                f"File contains more than {MAX_ROWS_PER_SHEET} data rows; "
+                f"maximum allowed is {MAX_ROWS_PER_SHEET}"
+            )
+            session_obj.validation_errors = [{"error": msg}]
+            await db.flush()
+            wb.close()
+            return ValidationSummary(
+                session_id=session_id, asset_type=asset_type, status="failed",
+                total_rows=MAX_ROWS_PER_SHEET + 1, valid_rows=0, duplicate_rows=0, error_rows=0,
+                warnings=0, errors=[{"row": 0, "field": "file", "error": msg}],
+                duplicates=[],
+            )
+
+    # Reset iterator for validation pass
+    wb.close()
+    wb = openpyxl.load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
+    ws = wb.active
 
     # ── Layers 3 & 4: Row validation + duplicate check ───────
     row_validator = _ROW_VALIDATORS.get(asset_type)
@@ -603,9 +655,16 @@ async def run_full_validation(
 def _build_orm_instance(asset_type: str, row_data: dict, tenant_id: uuid.UUID,
                         created_by: uuid.UUID, upload_session_id: uuid.UUID):
     """Build the live-table ORM model from a validated staging row."""
-    lng = float(row_data["longitude"])
-    lat = float(row_data["latitude"])
-    pt  = make_point(lng, lat)
+    # row_data holds the exact decimal text from the sheet. Keep it as a
+    # Decimal for the WKT so the geometry column renders 6.524378 and not the
+    # binary64 repr 6.524377999999, but hand the Double-backed longitude /
+    # latitude columns a real float -- asyncpg rejects Decimal for a
+    # FLOAT(53) bind parameter.
+    lng_dec = Decimal(str(row_data["longitude"]))
+    lat_dec = Decimal(str(row_data["latitude"]))
+    lng = float(lng_dec)
+    lat = float(lat_dec)
+    pt  = make_point(lng_dec, lat_dec)
 
     if asset_type == "splitter":
         nc = row_data.get("number_customer")
@@ -695,9 +754,16 @@ async def commit_session(
     committed_count = 0
     asset_type = session_obj.asset_type
 
+    from app.modules.network.upload import NET_UPLOAD_TYPES, commit_rows
+    net_type = NET_UPLOAD_TYPES.get(asset_type)
+
     try:
         async with await db.begin_nested():  # type: ignore[attr-defined]
-            for staging_row in rows_to_commit:
+            if net_type is not None:
+                committed_count = await commit_rows(
+                    db, net_type, list(rows_to_commit), tenant_id, actor_user, session_id,
+                )
+            for staging_row in (rows_to_commit if net_type is None else ()):
                 orm_obj = _build_orm_instance(
                     asset_type, staging_row.row_data,
                     tenant_id, approved_by_user_id, session_id,
@@ -719,11 +785,21 @@ async def commit_session(
                     tenant_id=tenant_id,
                 )
 
-                staging_row.committed = True
                 committed_count += 1
 
+            # Dual-write (Network GIS Phase 2): mirror the uploaded
+            # OLTs / cabinets / splitters into net_assets in the same savepoint
+            if net_type is None and committed_count:
+                from app.modules.network.backfill import mirror_uploaded
+                await mirror_uploaded(db, tenant_id)
+
+            # Mark staging rows as committed AFTER all inserts succeed (inside savepoint)
+            for staging_row in rows_to_commit:
+                staging_row.committed = True
+
     except Exception as exc:
-        # Savepoint rolled back all live-table inserts; update session to rolled_back
+        # Savepoint rolled back all live-table inserts
+        # Staging rows are NOT marked as committed, so retry is safe
         session_obj.status = "rolled_back"
         await db.flush()
         return CommitResult(
@@ -772,6 +848,14 @@ async def generate_error_report_xlsx(
 
     display_cols = ASSET_COLUMNS_DISPLAY.get(asset_type, [])
     key_cols     = ASSET_COLUMNS_KEYS.get(asset_type, [])
+    from app.modules.network.upload import NET_UPLOAD_TYPES
+    if asset_type in NET_UPLOAD_TYPES:
+        # Staged network rows are normalised: show the base fields as stored
+        u = NET_UPLOAD_TYPES[asset_type]
+        key_cols = ["asset_code", "name", "lifecycle_status"] + (
+            ["capacity"] if u.kind == "asset" else ["cable_category", "fiber_count", "source_asset_code", "dest_asset_code"]
+        )
+        display_cols = key_cols
 
     wb = openpyxl.Workbook()
     ws = wb.active

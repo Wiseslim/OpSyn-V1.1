@@ -48,7 +48,11 @@ class Project(Base):
 
     # Relationships
     pipeline_template: "PipelineTemplate" = relationship("PipelineTemplate", back_populates="projects", lazy="joined")
-    current_stage:     "ProjectPipelineStage" = relationship("ProjectPipelineStage", foreign_keys=[current_stage_id], lazy="joined")
+    # post_update: projects point at a stage and stages point back at their
+    # project. Without it, a flush that touches both (advance, push back,
+    # pipeline init) is an unsortable cycle — CircularDependencyError. With it,
+    # current_stage_id is written in a separate UPDATE after the rows exist.
+    current_stage:     "ProjectPipelineStage" = relationship("ProjectPipelineStage", foreign_keys=[current_stage_id], lazy="joined", post_update=True)
     pipeline_stages:   list["ProjectPipelineStage"] = relationship("ProjectPipelineStage", back_populates="project", foreign_keys="[ProjectPipelineStage.project_id]")
 
 

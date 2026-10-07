@@ -19,6 +19,8 @@ celery_app = Celery(
         "app.tasks.capacity_monitor",
         "app.tasks.staff_efficiency",
         "app.tasks.task_reminders",
+        "app.tasks.fttx_design_run",
+        "app.tasks.metric_snapshots",
     ],
 )
 
@@ -56,6 +58,10 @@ celery_app.conf.update(
         "send-task-deadline-reminders": {
             "task":     "tasks.send_deadline_reminders",
             "schedule": 86400.0,
+        },
+        "capture-metric-snapshots": {
+            "task":     "reports.capture_metric_snapshots",
+            "schedule": 3600.0,
         },
     },
 )

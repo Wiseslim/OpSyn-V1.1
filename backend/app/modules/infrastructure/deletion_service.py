@@ -13,10 +13,11 @@ from __future__ import annotations
 import io
 import uuid
 import datetime
+from collections import deque
 from typing import Any
 
 import openpyxl
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,6 +32,11 @@ from app.modules.infrastructure.audit_service import write_audit_entry
 
 # xlsx is a ZIP container; its first 4 bytes are always PK\x03\x04
 _XLSX_MAGIC = b'PK\x03\x04'
+
+# Guard against a corrupt parent_splitter_id cycle turning the walk below into
+# an infinite loop. Real FTTH hierarchies are 2-3 deep; this is far above any
+# legitimate tree while still terminating on a cycle.
+_MAX_CASCADE_DEPTH = 32
 
 # Required columns in deletion files (lowercased for matching)
 DELETION_REQUIRED_COLUMNS: dict[str, list[str]] = {
@@ -221,6 +227,99 @@ async def match_deletion_keys_olt(
     return results
 
 
+# ── Cascade targets ───────────────────────────────────────────
+#
+# splitter_boxes.cabinet_id and splitter_boxes.parent_splitter_id are both
+# ON DELETE SET NULL, so a hard delete of a cabinet or a First-Level splitter
+# would silently orphan its children: they would stay live and active while
+# pointing at nothing. Soft delete has the same failure in application form,
+# because it never reaches the FK at all. So the deletion walk has to carry
+# the children with it.
+
+
+async def _splitter_descendants(
+    db: AsyncSession,
+    roots: list[uuid.UUID],
+    tenant_id: uuid.UUID,
+) -> list[uuid.UUID]:
+    """Every active splitter below `roots`, breadth-first, cycle-safe.
+
+    Two separate sets, and the distinction matters: `seen` is every child
+    discovered (used to report each box once), `expanded` is every node whose
+    own children have already been fetched (used to terminate). Collapsing
+    them into one set makes the second level of the walk an immediate no-op,
+    because the frontier is by then entirely made of "seen" nodes.
+    """
+    found: list[uuid.UUID] = []
+    seen: set[uuid.UUID] = set()
+    expanded: set[uuid.UUID] = set()
+    frontier: deque[uuid.UUID] = deque(roots)
+
+    for _ in range(_MAX_CASCADE_DEPTH):
+        batch = [i for i in frontier if i not in expanded]
+        if not batch:
+            break
+        expanded.update(batch)
+
+        rows = (await db.execute(
+            select(SplitterBox.id).where(
+                SplitterBox.parent_splitter_id.in_(batch),
+                SplitterBox.tenant_id == tenant_id,
+                SplitterBox.is_deleted.is_(False),
+            )
+        )).scalars().all()
+
+        for row_id in rows:
+            if row_id not in seen:
+                seen.add(row_id)
+                found.append(row_id)
+
+        frontier = deque(rows)
+
+    return found
+
+
+async def collect_cascade_targets(
+    db: AsyncSession,
+    asset_type: str,
+    matched_ids: list[uuid.UUID],
+    tenant_id: uuid.UUID,
+) -> tuple[list[uuid.UUID], list[uuid.UUID]]:
+    """Split the deletion set into explicitly requested and cascaded ids.
+
+    Returns (explicit, cascaded). OLTs have no children and always return an
+    empty cascaded list.
+    """
+    if not matched_ids:
+        return [], []
+
+    cascaded: list[uuid.UUID] = []
+
+    if asset_type == "cabinet":
+        # Everything mounted in the cabinet, then everything below those.
+        direct = (await db.execute(
+            select(SplitterBox.id).where(
+                SplitterBox.cabinet_id.in_(matched_ids),
+                SplitterBox.tenant_id == tenant_id,
+                SplitterBox.is_deleted.is_(False),
+            )
+        )).scalars().all()
+        cascaded.extend(direct)
+        cascaded.extend(await _splitter_descendants(db, list(direct), tenant_id))
+
+    elif asset_type == "splitter":
+        cascaded.extend(await _splitter_descendants(db, matched_ids, tenant_id))
+
+    # De-duplicate while keeping order, and drop anything already requested.
+    explicit_set = set(matched_ids)
+    seen: set[uuid.UUID] = set()
+    unique_cascaded = [
+        i for i in cascaded
+        if i not in explicit_set and not (i in seen or seen.add(i))
+    ]
+    return list(matched_ids), unique_cascaded
+
+
 # ── Execute deletion ──────────────────────────────────────────
 
 _ORM_MAP = {"splitter": SplitterBox, "cabinet": Cabinet, "olt": OLT}
@@ -232,7 +331,12 @@ async def execute_deletion(
     tenant_id: uuid.UUID,
     approved_by_user_id: uuid.UUID,
 ) -> DeletionResult:
-    """Soft-delete all matched assets in a single atomic savepoint.
+    """Soft-delete all matched assets plus their dependants, atomically.
+
+    Deleting a cabinet also deletes the splitters mounted in it and their
+    descendants; deleting a splitter also deletes its descendants. Children
+    the approver never named are still reported and audited, so the count in
+    the UI is the count that was actually deleted.
 
     Updates session to executed or failed. Writes audit log for every deleted asset.
     """
@@ -264,10 +368,15 @@ async def execute_deletion(
             error=f"Unsupported asset_type '{asset_type}'",
         )
 
+    explicit_ids, cascaded_ids = await collect_cascade_targets(
+        db, asset_type, matched_ids, tenant_id
+    )
+
     deleted_count = 0
+    cascaded_count = 0
     try:
         async with await db.begin_nested():  # type: ignore[attr-defined]
-            for asset_id in matched_ids:
+            for asset_id in explicit_ids:
                 asset_obj = await db.get(orm_cls, asset_id)
                 if asset_obj is None or asset_obj.is_deleted:
                     continue
@@ -295,6 +404,54 @@ async def execute_deletion(
                 )
                 deleted_count += 1
 
+            # Dependants the approver never named. Set in one statement so a
+            # failure part-way through cannot leave half a subtree deleted.
+            if cascaded_ids:
+                await db.execute(
+                    update(SplitterBox)
+                    .where(
+                        SplitterBox.id.in_(cascaded_ids),
+                        SplitterBox.tenant_id == tenant_id,
+                        SplitterBox.is_deleted.is_(False),
+                    )
+                    .values(is_deleted=True)
+                )
+                cascaded_count = len(cascaded_ids)
+
+                # One audit row per cascaded splitter: the audit log is the
+                # only record of why a box the user never named disappeared.
+                cascade_rows = (await db.execute(
+                    select(
+                        SplitterBox.id,
+                        SplitterBox.box_id,
+                        SplitterBox.splitter_level,
+                        SplitterBox.splitter_type,
+                    ).where(SplitterBox.id.in_(cascaded_ids))
+                )).all()
+                for row in cascade_rows:
+                    await write_audit_entry(
+                        db,
+                        asset_type="splitter",
+                        asset_id=row.id,
+                        asset_key=row.box_id,
+                        action="soft_delete_cascade",
+                        session_id=session_id,
+                        actor_user=actor_user,
+                        old_data={
+                            "box_id": row.box_id,
+                            "splitter_level": row.splitter_level,
+                            "splitter_type": row.splitter_type,
+                        },
+                        new_data=None,
+                        tenant_id=tenant_id,
+                    )
+
+            # Dual-write (Network GIS Phase 2): retire the net_assets mirrors
+            # of what was just deleted, in the same savepoint.
+            if deleted_count or cascaded_count:
+                from app.modules.network.backfill import mirror_uploaded
+                await mirror_uploaded(db, tenant_id)
+
     except Exception as exc:
         session_obj.status = "failed"
         await db.flush()
@@ -304,7 +461,7 @@ async def execute_deletion(
 
     # Success
     session_obj.status       = "executed"
-    session_obj.deleted_rows = deleted_count
+    session_obj.deleted_rows = deleted_count + cascaded_count
     session_obj.approved_by  = approved_by_user_id
     session_obj.approved_at  = datetime.datetime.now(datetime.timezone.utc)
     session_obj.executed_at  = datetime.datetime.now(datetime.timezone.utc)
@@ -313,6 +470,7 @@ async def execute_deletion(
     return DeletionResult(
         session_id=session_id,
         deleted_rows=deleted_count,
+        cascaded_rows=cascaded_count,
         status="executed",
     )
 

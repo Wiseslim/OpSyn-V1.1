@@ -85,7 +85,8 @@ class TestUploadInvalidAssetType:
         assert "cabinet"  in _VALID_UPLOAD_TYPES
         assert "olt"       in _VALID_UPLOAD_TYPES
         assert "unknown"  not in _VALID_UPLOAD_TYPES
-        assert "cable"    not in _VALID_UPLOAD_TYPES
+        # Network GIS Phase 2: cables (and poles, FATs, …) upload into net_cables / net_assets
+        assert "cable"    in _VALID_UPLOAD_TYPES
 
 
 # ══════════════════════════════════════════════════════════════

@@ -3,60 +3,27 @@
 # conftest.py + factories + unit + integration + E2E tests
 # Run: pytest tests/ -v
 # ============================================================
+#
+# Fixtures (db_engine, db_session, client, admin_token, manager_token) come
+# from tests/conftest.py.
+#
+# This file used to redefine all of them locally. That shadowing was removed
+# because it could never pass and, worse, was destructive:
+#   - it pointed at a different database (localhost/opsyn_test) with a
+#     different password, ignoring DATABASE_URL, so every test that needed a
+#     session errored with a connection failure;
+#   - its token fixtures used passwords (opsyn_admin_pass) that the seed script
+#     does not create (opsyn_admin_2026), so they raised KeyError on the
+#     response body;
+#   - its session-scoped engine called drop_all() at teardown, which would
+#     destroy the schema and seeded data every other test file depends on;
+#   - it overrode `event_loop` at session scope, which conftest.py documents as
+#     the cause of "Future attached to a different loop" errors.
+#
+# The tests below are unchanged; they only ever needed conftest's fixtures.
+import uuid
 
-# ══ tests/conftest.py ════════════════════════════════════════
-import asyncio, pytest, uuid
-from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from app.core.database import Base, get_db
-from main import app
-
-TEST_DB_URL = "postgresql+asyncpg://opsyn:opsyn@localhost:5432/opsyn_test"
-
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-@pytest.fixture(scope="session")
-async def db_engine():
-    engine = create_async_engine(TEST_DB_URL, echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    await engine.dispose()
-
-@pytest.fixture
-async def db_session(db_engine):
-    factory = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
-    async with factory() as session:
-        yield session
-        await session.rollback()
-
-@pytest.fixture
-async def client(db_session):
-    async def override_db():
-        yield db_session
-    app.dependency_overrides[get_db] = override_db
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-        yield c
-    app.dependency_overrides.clear()
-
-@pytest.fixture
-async def admin_token(client):
-    # Assumes seed data has admin@opsyn.ng / opsyn_admin_pass
-    resp = await client.post("/api/v1/auth/login",
-                              json={"email": "admin@opsyn.ng", "password": "opsyn_admin_pass"})
-    return resp.json()["data"]["access_token"]
-
-@pytest.fixture
-async def manager_token(client):
-    resp = await client.post("/api/v1/auth/login",
-                              json={"email": "manager@opsyn.ng", "password": "opsyn_manager_pass"})
-    return resp.json()["data"]["access_token"]
+import pytest
 
 
 # ══ tests/unit/test_staff_policy.py ══════════════════════════

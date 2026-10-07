@@ -23,8 +23,9 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Install all Python dependencies from requirements.txt
 COPY requirements.txt /build/requirements.txt
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r /build/requirements.txt
+RUN pip install --no-cache-dir --retries 10 --timeout 120 --upgrade pip && \
+    pip install --no-cache-dir --retries 10 --timeout 120 \
+      -r /build/requirements.txt
 
 # ── Stage 2: Runtime ─────────────────────────────────────────
 FROM python:3.12-slim AS runtime

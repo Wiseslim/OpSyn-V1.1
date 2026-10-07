@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { tasksApi } from '../../api/tasks.api';
 import { useAuthStore } from '../../store/auth.store';
+import { PageHeader } from '../../components/layout/Page';
 
 // ── Table helpers ─────────────────────────────────────────────
 
@@ -49,14 +50,14 @@ function DateFilterBar({
   const inputStyle: React.CSSProperties = {
     border: '1px solid var(--color-border)', borderRadius: 6,
     padding: '5px 8px', fontSize: 12, fontFamily: 'var(--font)',
-    color: 'var(--color-text-primary)', background: 'white', outline: 'none',
+    color: 'var(--color-text-primary)', background: 'var(--surface)', outline: 'none',
   };
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
       <label style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600 }}>From</label>
-      <input type="date" value={from} onChange={e => onFrom(e.target.value)} style={inputStyle} />
+      <input type="date" aria-label="From date" max={to || undefined} value={from} onChange={e => onFrom(e.target.value)} style={inputStyle} />
       <label style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600 }}>To</label>
-      <input type="date" value={to}   onChange={e => onTo(e.target.value)}   style={inputStyle} />
+      <input type="date" aria-label="To date" min={from || undefined} value={to}   onChange={e => onTo(e.target.value)}   style={inputStyle} />
       {(from || to) && (
         <button
           onClick={onClear}
@@ -114,7 +115,7 @@ export default function AssignmentAnalyticsPage() {
   }
 
   const cardStyle: React.CSSProperties = {
-    background: 'white', border: '1px solid var(--color-border)',
+    background: 'var(--surface)', border: '1px solid var(--color-border)',
     borderRadius: 'var(--radius-card)', marginBottom: 28, overflow: 'hidden',
   };
 
@@ -128,17 +129,12 @@ export default function AssignmentAnalyticsPage() {
       {/* Header */}
       <div style={{
         padding: '14px 24px', borderBottom: '1px solid var(--color-border)',
-        background: 'white', flexShrink: 0,
+        background: 'var(--surface)', flexShrink: 0,
       }}>
-        <h1 style={{
-          fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 800,
-          color: 'var(--color-text-primary)', letterSpacing: '-.03em', margin: 0,
-        }}>
-          Assignment Analytics
-        </h1>
-        <p style={{ fontSize: 11, color: 'var(--color-text-muted)', margin: '3px 0 0' }}>
-          Workload and completion metrics for staff and departments
-        </p>
+        <PageHeader
+          title="Assignment analytics"
+          lede="Workload and completion metrics for staff and departments"
+        />
       </div>
 
       {/* Body */}

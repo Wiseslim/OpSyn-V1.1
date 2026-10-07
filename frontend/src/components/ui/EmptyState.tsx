@@ -1,10 +1,13 @@
 // ============================================================
-// OPSYN UI — EmptyState  (Stage 3 rebuild)
-// Design tokens: --color-text-primary, --color-text-muted, --font-display, --font-body
+// OPSYN UI — EmptyState  (Phase 4)
+// Emptiness is a moment for direction: say what would be here and offer
+// the next step. Same props as before.
 // ============================================================
 
+import { Inbox } from 'lucide-react';
 import React from 'react';
-import { Button, ButtonVariant } from './Button';
+import { Button, type ButtonVariant } from './Button';
+import styles from './EmptyState.module.css';
 
 export interface EmptyStateAction {
   label:    string;
@@ -21,78 +24,16 @@ export interface EmptyStateProps {
   style?:    React.CSSProperties;
 }
 
-const ICON_SIZE:  Record<string, number> = { sm: 28, md: 36, lg: 48 };
-const TITLE_SIZE: Record<string, number> = { sm: 13, md: 14, lg: 16 };
-const MSG_SIZE:   Record<string, number> = { sm: 12, md: 12, lg: 13 };
-const PAD:        Record<string, string> = { sm: '24px 16px', md: '40px 24px', lg: '56px 32px' };
+const ICON: Record<'sm' | 'md' | 'lg', number> = { sm: 24, md: 32, lg: 40 };
 
-const DefaultIcon = ({ size }: { size: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-       stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
-    <circle cx="11" cy="11" r="8" />
-    <path d="m21 21-4.35-4.35" />
-  </svg>
-);
-
-// ══ EMPTY STATE ═══════════════════════════════════════════════
-export function EmptyState({
-  icon,
-  title,
-  message,
-  action,
-  size  = 'md',
-  style,
-}: EmptyStateProps) {
+export function EmptyState({ icon, title, message, action, size = 'md', style }: EmptyStateProps) {
   return (
-    <div style={{
-      display:        'flex',
-      flexDirection:  'column',
-      alignItems:     'center',
-      justifyContent: 'center',
-      textAlign:      'center',
-      padding:        PAD[size],
-      color:          'var(--color-text-muted)',
-      ...style,
-    }}>
-      <div style={{
-        fontSize:     ICON_SIZE[size],
-        marginBottom: 14,
-        opacity:      0.35,
-        lineHeight:   1,
-        color:        'var(--color-text-muted)',
-      }}>
-        {icon ?? <DefaultIcon size={ICON_SIZE[size]} />}
-      </div>
-
-      <div style={{
-        fontFamily:   'var(--font-display)',
-        fontSize:     TITLE_SIZE[size],
-        fontWeight:   700,
-        color:        'var(--color-text-primary)',
-        marginBottom: message ? 6 : action ? 16 : 0,
-      }}>
-        {title}
-      </div>
-
-      {message && (
-        <div style={{
-          fontFamily:   'var(--font-body)',
-          fontSize:     MSG_SIZE[size],
-          color:        'var(--color-text-muted)',
-          maxWidth:     340,
-          lineHeight:   1.6,
-          marginBottom: action ? 18 : 0,
-        }}>
-          {message}
-        </div>
-      )}
-
+    <div className={`${styles.empty} ${styles[size]}`} style={style}>
+      <div className={styles.icon} aria-hidden="true">{icon ?? <Inbox size={ICON[size]} strokeWidth={1.5} />}</div>
+      <p className={styles.title}>{title}</p>
+      {message && <p className={styles.message}>{message}</p>}
       {action && (
-        <Button
-          variant={action.variant ?? 'secondary'}
-          size="sm"
-          onClick={action.onClick}
-        >
+        <Button variant={action.variant ?? 'secondary'} size="sm" onClick={action.onClick} style={{ marginTop: 'var(--space-4)' }}>
           {action.label}
         </Button>
       )}

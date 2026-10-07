@@ -243,7 +243,7 @@ export default function RegisterPage() {
 
         <p style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: 'var(--text3)' }}>
           Already have an account?{' '}
-          <Link to="/login" style={{ color: 'var(--accent)', textDecoration: 'none' }}>
+          <Link to="/login" style={{ color: 'var(--accent-text)', textDecoration: 'none' }}>
             Sign in
           </Link>
         </p>
@@ -266,7 +266,7 @@ const inputStyle: React.CSSProperties = {
 
 const btnStyle: React.CSSProperties = {
   width: '100%', padding: '11px 16px',
-  background: 'var(--accent)', color: '#fff',
+  background: 'var(--accent)', color: 'var(--brand-contrast)',
   border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600,
   cursor: 'pointer', marginTop: 24,
 };

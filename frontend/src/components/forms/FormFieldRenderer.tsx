@@ -5,6 +5,7 @@
 
 import CoordinatesField from './CoordinatesField';
 import type { FormField } from '@shared';
+import { GlassSelect } from '../../components/glass';
 
 interface Props {
   field:    FormField;
@@ -91,16 +92,7 @@ export default function FormFieldRenderer({ field, value, onChange, error, disab
   else if (field_type === 'dropdown') {
     const opts = options ?? [];
     inputNode = (
-      <select
-        value={String(val)} disabled={disabled}
-        onChange={e => onChange(field_key, e.target.value)}
-        style={{ ...INPUT_STYLE, border: `1px solid ${borderColor}`, cursor: 'pointer' }}
-      >
-        <option value="">{placeholder ?? 'Select an option…'}</option>
-        {opts.map((o: any) => (
-          <option key={o.value ?? o} value={o.value ?? o}>{o.label ?? o}</option>
-        ))}
-      </select>
+      <GlassSelect value={String(val)} onChange={v => onChange(field_key, v)} options={[...opts.map((o: any) => ({ value: String(o.value ?? o), label: String(o.label ?? o) }))]} placeholder={String(placeholder ?? 'Select an option…')} disabled={disabled} ariaLabel={label} />
     );
   }
 
@@ -149,7 +141,7 @@ export default function FormFieldRenderer({ field, value, onChange, error, disab
             boxShadow: val ? '0 0 8px rgba(74,222,128,.3)' : 'none',
           }}>
           <div style={{
-            width: 14, height: 14, borderRadius: '50%', background: '#fff',
+            width: 14, height: 14, borderRadius: '50%', background: 'var(--surface)',
             position: 'absolute', top: 3,
             left: val ? 19 : 3, transition: 'left .2s',
           }} />

@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notificationsApi } from '../../api/index';
 import { useUIStore } from '../../store/ui.store';
 import { Button } from '../../components/ui';
+import { PageHeader } from '../../components/layout/Page';
 
 const toArr = (d: any): any[] => Array.isArray(d) ? d : (d?.items ?? []);
 
@@ -154,7 +155,7 @@ export default function NotificationsPage() {
       <div style={{
         width: 180, flexShrink: 0,
         borderRight: '1px solid var(--color-border)',
-        background: 'white',
+        background: 'var(--surface)',
         display: 'flex', flexDirection: 'column',
         paddingTop: 16,
       }}>
@@ -207,19 +208,12 @@ export default function NotificationsPage() {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '14px 24px',
           borderBottom: '1px solid var(--color-border)',
-          flexShrink: 0, background: 'white',
+          flexShrink: 0, background: 'var(--surface)',
         }}>
-          <div>
-            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, color: 'var(--color-text-primary)' }}>
-              Notifications
-            </span>
-            {unread > 0 && (
-              <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginLeft: 8 }}>
-                {unread} unread
-              </span>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <PageHeader
+            title="Notifications"
+            meta={unread > 0 ? `${unread} unread` : undefined}
+            primary={<>
             {unreadInView > 0 && activeCategory !== 'all' && (
               <Button
                 variant="ghost" size="sm"
@@ -234,7 +228,8 @@ export default function NotificationsPage() {
                 Mark All Read
               </Button>
             )}
-          </div>
+            </>}
+          />
         </div>
 
         {/* Notification list */}
@@ -261,7 +256,7 @@ export default function NotificationsPage() {
                   padding:    '14px 24px',
                   borderBottom: '1px solid var(--color-border)',
                   cursor:     hasLink || !n.is_read ? 'pointer' : 'default',
-                  background: !n.is_read ? `${cat.color}08` : 'white',
+                  background: !n.is_read ? `${cat.color}08` : 'var(--surface)',
                   borderLeft: `4px solid ${borderColor}`,
                   transition: 'background .15s',
                 }}
@@ -270,7 +265,7 @@ export default function NotificationsPage() {
                     (e.currentTarget as HTMLDivElement).style.background = `${cat.color}12`;
                 }}
                 onMouseLeave={e => {
-                  (e.currentTarget as HTMLDivElement).style.background = !n.is_read ? `${cat.color}08` : 'white';
+                  (e.currentTarget as HTMLDivElement).style.background = !n.is_read ? `${cat.color}08` : 'var(--surface)';
                 }}
               >
                 {/* Unread dot */}

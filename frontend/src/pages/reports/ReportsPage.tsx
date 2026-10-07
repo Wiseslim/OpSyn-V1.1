@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { reportsApi } from '../../api/index';
 import { Button } from '../../components/ui';
+import { Page, PageHeader } from '../../components/layout/Page';
 
 type TabKey = 'overview' | 'staff' | 'tasks' | 'projects' | 'outages' | 'infrastructure' | 'shifts' | 'sla';
 
@@ -55,7 +56,7 @@ const PROJECT_TYPE_COLORS: Record<string, string> = {
 function KpiTile({ label, value, color }: { label: string; value: string | number; color: string }) {
   return (
     <div style={{
-      background: 'white', border: '1px solid var(--color-border)',
+      background: 'var(--surface)', border: '1px solid var(--color-border)',
       borderRadius: 'var(--radius-card)', padding: '16px 18px',
       borderTop: `3px solid ${color}`,
     }}>
@@ -96,7 +97,7 @@ function Pbar({ pct, fill }: { pct: number; fill: string }) {
 
 function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', padding: 16, ...style }}>
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', padding: 16, ...style }}>
       {children}
     </div>
   );
@@ -154,28 +155,16 @@ export default function ReportsPage() {
   const Loading = () => <div style={{ color: 'var(--color-text-muted)', fontSize: 12, padding: 20 }}>Loading…</div>;
 
   return (
-    <div style={{ overflow: 'auto', flex: 1, background: 'var(--color-surface)' }}>
-      <div style={{ padding: '20px 24px' }}>
+    <Page>
 
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
-          <div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: 'var(--color-text-primary)', letterSpacing: '-.03em', margin: 0 }}>
-              Operational Intelligence
-            </h1>
-            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, marginBottom: 0 }}>
-              Workforce &amp; Network Analytics · Live Data
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-              style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: 8, padding: '6px 10px', color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)', fontSize: 12, outline: 'none' }} />
-            <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>→</span>
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-              style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: 8, padding: '6px 10px', color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)', fontSize: 12, outline: 'none' }} />
-            <Button variant="secondary" size="sm" onClick={exportCSV}>Export CSV</Button>
-          </div>
-        </div>
+        <PageHeader
+        title="Operational Intelligence"
+        lede={<>Workforce &amp; Network Analytics · Live Data</>}
+        primary={<><input type="date" aria-label="From date" max={dateTo || undefined} value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+              style={{ background: 'var(--surface)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '6px 10px', color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)', fontSize: 12, outline: 'none' }} /><span aria-hidden="true" style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>→</span><input type="date" aria-label="To date" min={dateFrom || undefined} value={dateTo} onChange={e => setDateTo(e.target.value)}
+              style={{ background: 'var(--surface)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '6px 10px', color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)', fontSize: 12, outline: 'none' }} /><Button variant="secondary" size="sm" onClick={exportCSV}>Export CSV</Button></>}
+      />
 
         {/* Tab bar */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -185,7 +174,7 @@ export default function ReportsPage() {
                 padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
                 cursor: 'pointer', fontFamily: 'var(--font-body)',
                 border:      tab === t.key ? '1px solid rgba(0,194,168,.3)' : '1px solid var(--color-border)',
-                background:  tab === t.key ? 'rgba(0,194,168,.08)' : 'white',
+                background:  tab === t.key ? 'rgba(0,194,168,.08)' : 'var(--surface)',
                 color:       tab === t.key ? 'var(--color-teal)' : 'var(--color-text-muted)',
                 transition:  'all .15s',
               }}
@@ -527,7 +516,7 @@ export default function ReportsPage() {
           </div>
         ))}
 
-      </div>
-    </div>
+      
+    </Page>
   );
 }

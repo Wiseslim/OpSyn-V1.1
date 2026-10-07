@@ -85,7 +85,7 @@ export default function GanttView({ board, loading, onSelect }: Props) {
   }
 
   return (
-    <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
+    <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }} tabIndex={0} role="region" aria-label="Task timeline">
       <div style={{
         background:   'var(--bg2)',
         border:       '1px solid var(--wire)',

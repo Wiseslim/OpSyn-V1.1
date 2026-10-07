@@ -10,6 +10,7 @@ import { useCustomer, useCustomerFields, useSubmitCustomerFields } from '../../h
 import { useUIStore } from '../../store/ui.store';
 import { formBuilderApi, type ContextSchema } from '../../api/form-builder.api';
 import FormRenderer from '../../components/form-builder/FormRenderer';
+import { GlassSelect } from '../../components/glass';
 
 function useToast() {
   const { addToast } = useUIStore();
@@ -81,7 +82,7 @@ function FieldSubmissionPanel({ customerId }: { customerId: string }) {
   };
 
   return (
-    <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: 12, padding: 20 }}>
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--color-border)', borderRadius: 12, padding: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary)' }}>
           Pipeline Fields
@@ -124,10 +125,7 @@ function FieldSubmissionPanel({ customerId }: { customerId: string }) {
                     <textarea style={{ ...inputStyle, resize: 'vertical' }} rows={2}
                       value={current} onChange={e => setValue(f.key, e.target.value)} />
                   ) : f.fieldType === 'select' && f.validationRules?.options_list ? (
-                    <select style={inputStyle} value={current} onChange={e => setValue(f.key, e.target.value)}>
-                      <option value="">Select…</option>
-                      {f.validationRules.options_list.map((o: string) => <option key={o} value={o}>{o}</option>)}
-                    </select>
+                    <GlassSelect value={String(current)} onChange={v => setValue(f.key, v)} options={[...f.validationRules.options_list.map((o: string) => ({ value: String(o), label: String(o) }))]} placeholder={'Select…'} ariaLabel={f.label} />
                   ) : (
                     <input style={inputStyle}
                       type={f.fieldType === 'email' ? 'email' : f.fieldType === 'number' ? 'number' : f.fieldType === 'date' ? 'date' : 'text'}
@@ -176,7 +174,7 @@ function DynamicFormsPanel({ customerId }: { customerId: string }) {
   const active = schemas[activeIdx] ?? schemas[0];
 
   return (
-    <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: 12, padding: 20, marginTop: 16 }}>
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--color-border)', borderRadius: 12, padding: 20, marginTop: 16 }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 12 }}>
         Dynamic Forms
       </div>
@@ -266,9 +264,9 @@ export default function CustomerDetailPage() {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text-primary)', letterSpacing: '-.02em' }}>
+            <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text-primary)', letterSpacing: '-.02em', margin: 0 }}>
               {customer.fullName ?? `${customer.firstName} ${customer.lastName}`}
-            </div>
+            </h1>
             <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ padding: '2px 10px', borderRadius: 5, fontSize: 11, fontWeight: 700,
                 background: `${statusColor}18`, color: statusColor }}>
@@ -288,7 +286,7 @@ export default function CustomerDetailPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
 
           {/* Customer Profile */}
-          <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: 12, padding: 20 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--color-border)', borderRadius: 12, padding: 20 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)',
               textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 12 }}>
               Profile
@@ -303,7 +301,7 @@ export default function CustomerDetailPage() {
           </div>
 
           {/* Payment */}
-          <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: 12, padding: 20 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--color-border)', borderRadius: 12, padding: 20 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)',
               textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 12 }}>
               Payment
@@ -340,7 +338,7 @@ export default function CustomerDetailPage() {
 
         {/* Linked Projects */}
         {projects.length > 0 && (
-          <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--color-border)', borderRadius: 12, padding: 20, marginBottom: 16 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)',
               textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 12 }}>
               Linked Projects

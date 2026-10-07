@@ -38,6 +38,12 @@ from app.modules.reports.router import router as reports_router
 from app.modules.settings.router import router as settings_router
 from app.modules.activity.router import router as activity_router
 from app.modules.infrastructure.router import router as infrastructure_router
+from app.modules.fttx_designer.router import router as fttx_designer_router
+from app.modules.network.router import router as network_router
+from app.modules.gis.router import router as gis_router
+from app.modules.design.router import router as design_router
+from app.modules.approval.router import router as approval_router
+from app.modules.deployment.router import router as deployment_router
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.forms.router import router as forms_router
 from app.modules.customers.forms_router import router as customer_forms_router
@@ -47,6 +53,7 @@ from app.modules.webhooks.router import router as webhooks_router
 from app.modules.shifts.router import router as shifts_router
 from app.modules.form_builder.router import router as form_builder_router
 from app.modules.form_builder.submission_router import router as form_builder_submission_router
+from app.modules.form_builder.migration_router import router as form_builder_migration_router
 from app.core.exceptions import register_exception_handlers
 
 
@@ -125,8 +132,15 @@ def create_app() -> FastAPI:
     app.include_router(roles_router,         prefix=f"{PREFIX}",               tags=["Roles"])
     app.include_router(perms_router,         prefix=f"{PREFIX}",               tags=["Permissions"])
     app.include_router(infrastructure_router, prefix=f"{PREFIX}",              tags=["Infrastructure"])
+    app.include_router(fttx_designer_router,  prefix=f"{PREFIX}",              tags=["FTTx Designer"])
+    app.include_router(network_router,        prefix=f"{PREFIX}",              tags=["Network"])
+    app.include_router(gis_router,            prefix=f"{PREFIX}",              tags=["GIS"])
+    app.include_router(design_router,         prefix=f"{PREFIX}",              tags=["Design"])
+    app.include_router(approval_router,       prefix=f"{PREFIX}",              tags=["Approval"])
+    app.include_router(deployment_router,     prefix=f"{PREFIX}",              tags=["Deployment"])
     app.include_router(form_builder_router,            prefix=f"{PREFIX}/form-builder", tags=["Form Builder"])
     app.include_router(form_builder_submission_router, prefix=f"{PREFIX}/form-builder", tags=["Form Builder"])
+    app.include_router(form_builder_migration_router,   prefix=f"{PREFIX}/form-builder", tags=["Form Builder"])
     app.include_router(tasks_router,                   prefix=f"{PREFIX}/tasks",        tags=["Tasks"])
     app.include_router(projects_router,      prefix=f"{PREFIX}/projects",      tags=["Projects"])
     app.include_router(outage_router,        prefix=f"{PREFIX}/outages",       tags=["Outage"])

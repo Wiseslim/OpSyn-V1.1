@@ -16,6 +16,8 @@ import { useUIStore } from '../../store/ui.store';
 import { Button, Spinner } from '../../components/ui';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import type { ApiError } from '../../api/client';
+import { ArrowLeft } from 'lucide-react';
+import { PageHeader } from '../../components/layout/Page';
 
 // ── Toast helper ─────────────────────────────────────────────
 function useToast() {
@@ -222,7 +224,7 @@ function InfrastructureDeletionContent() {
               <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--chalk1)', marginBottom: 4 }}>
                 {opt.label}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--chalk3)' }}>{opt.description}</div>
+              <div style={{ fontSize: 11, color: 'var(--chalk2)' }}>{opt.description}</div>
             </button>
           ))}
         </div>
@@ -467,23 +469,11 @@ function InfrastructureDeletionContent() {
       {/* Page header */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ marginBottom: 4 }}>
-          <button
-            onClick={() => navigate('/infrastructure')}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--chalk3)', fontSize: 13, padding: 0,
-            }}
-          >
-            ← Infrastructure
-          </button>
+          <Button variant="ghost" size="sm" leftIcon={<ArrowLeft size={16} aria-hidden="true" />} onClick={() => navigate('/infrastructure')}>
+            Infrastructure
+          </Button>
         </div>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--chalk1)' }}>
-          Bulk Asset Deletion
-        </h1>
-        <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--chalk3)' }}>
-          Upload a deletion file to soft-delete FTTH assets by key. Assets are matched
-          before any deletion is executed.
-        </p>
+        <PageHeader title="Bulk asset deletion" lede="Upload a deletion file to soft-delete FTTH assets by key. Assets are matched before any deletion is executed." />
       </div>
 
       <StepIndicator current={step} />

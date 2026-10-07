@@ -20,6 +20,17 @@ sqlalchemy         = {extras = ["asyncio"], version = "^2.0"}
 asyncpg            = "^0.29"
 alembic            = "^1.13"
 
+# ── FTTx Designer engine (geometry_compat shim) ─────────────────
+shapely            = "^2.0"
+pyproj             = "^3.6"
+rtree              = "^1.2"   # QgsSpatialIndex backing — see spatial_index.py
+
+# ── FTTx Designer DED report (Word doc + embedded maps) ──────────
+python-docx        = "^1.1"
+matplotlib         = "^3.9"
+geopandas          = "^1.0"
+contextily         = "^1.6"   # OSM basemap tiles for DED report maps; pulls in rasterio
+
 # ── Validation ────────────────────────────────────────────────
 pydantic           = "^2.9"
 pydantic-settings  = "^2.5"

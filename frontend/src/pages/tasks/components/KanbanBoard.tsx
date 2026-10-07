@@ -38,7 +38,7 @@ export default function KanbanBoard({ board, loading, onSelect, onAdd }: Props) 
       flex:       1,
       padding:    '16px 20px 20px',
       alignItems: 'flex-start',
-    }}>
+    }} tabIndex={0} role="region" aria-label="Task board">
       {COLUMNS.map(col => {
         const tasks: Task[] = (board as any)?.[col.key] ?? [];
         return (

@@ -1,10 +1,14 @@
 // ============================================================
 // PUSH BACK MODAL — S2.2.5 enriched
-// Reason field (text, required). Confirm disabled until filled.
+// Reason field (text, required ≥ 10 characters). Confirm disabled until met.
 // ============================================================
 
+import { ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 import type { ProjectPipelineStage } from '@shared';
+import { GlassModal } from '../glass';
+import { Button, Textarea } from '../ui';
+import s from './StageDialog.module.css';
 
 interface PushBackModalProps {
   isOpen:        boolean;
@@ -14,18 +18,20 @@ interface PushBackModalProps {
   prevStage?:    ProjectPipelineStage;
 }
 
-export function PushBackModal({ isOpen, onClose, onSubmit, currentStage, prevStage }: PushBackModalProps) {
-  const [reason,       setReason]       = useState('');
-  const [comment,      setComment]      = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+const MIN_REASON = 10;
 
-  const canSubmit = reason.trim().length >= 10;
+export function PushBackModal({ isOpen, onClose, onSubmit, currentStage, prevStage }: PushBackModalProps) {
+  const [reason, setReason] = useState('');
+  const [comment, setComment] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const trimmed = reason.trim();
+  const canSubmit = trimmed.length >= MIN_REASON;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setIsSubmitting(true);
     try {
-      await onSubmit(reason.trim(), comment.trim() || undefined);
+      await onSubmit(trimmed, comment.trim() || undefined);
       setReason('');
       setComment('');
     } finally {
@@ -33,131 +39,49 @@ export function PushBackModal({ isOpen, onClose, onSubmit, currentStage, prevSta
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div style={{
-      position: 'fixed', inset: 0,
-      background: 'rgba(0,0,0,.55)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 1000,
-    }}>
-      <div style={{
-        background: 'var(--bg)', border: '1px solid rgba(248,113,113,.3)',
-        borderRadius: 14, padding: 24, width: 460,
-        maxHeight: '85vh', overflow: 'auto',
-        boxShadow: '0 20px 60px rgba(0,0,0,.5)',
-      }}>
-        <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--rose)', marginBottom: 4 }}>
-          Push Back Stage
-        </h3>
-        <p style={{ fontSize: 11, color: 'var(--chalk3)', marginBottom: 16, lineHeight: 1.5 }}>
-          This will send the project back to the previous stage. Provide a clear reason.
-        </p>
-
-        {/* Current stage */}
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--chalk3)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 4 }}>
-            Current Stage
+    <GlassModal
+      open={isOpen}
+      onClose={onClose}
+      size="sm"
+      title="Push back stage"
+      description="The project goes back to the previous stage. Give a clear reason."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
+          <Button variant="danger-solid" onClick={handleSubmit} disabled={!canSubmit} loading={isSubmitting}
+            leftIcon={<ArrowLeft size={14} aria-hidden="true" />}>
+            Push back
+          </Button>
+        </>
+      }
+    >
+      <div className={s.stack}>
+        <div className={s.route}>
+          <div className={s.stage} data-role="from">
+            <div className={s.stageRole}>Current stage</div>
+            <div className={s.stageName}>{currentStage?.stageName ?? '—'}</div>
+            <div className={s.stageMeta}>{currentStage?.departmentName}</div>
           </div>
-          <div style={{
-            padding: '8px 12px', borderRadius: 8,
-            background: 'var(--bg3)', border: '1px solid var(--wire2)',
-          }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--chalk)' }}>
-              {currentStage?.stageName}
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--chalk3)' }}>{currentStage?.departmentName}</div>
+          <ArrowLeft size={16} className={s.arrow} aria-hidden="true" />
+          <div className={s.stage} data-role="back">
+            <div className={s.stageRole}>Returns to</div>
+            <div className={s.stageName}>{prevStage?.stageName ?? 'Previous stage'}</div>
+            <div className={s.stageMeta}>{prevStage?.departmentName}</div>
           </div>
         </div>
-
-        {/* Return-to stage */}
-        {prevStage && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--chalk3)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 4 }}>
-              Will Return To
-            </div>
-            <div style={{
-              padding: '8px 12px', borderRadius: 8,
-              background: 'rgba(251,191,36,.06)', border: '1px solid rgba(251,191,36,.25)',
-            }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--amber)' }}>
-                {prevStage.stageName}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--chalk3)' }}>{prevStage.departmentName}</div>
-            </div>
-          </div>
-        )}
-
-        {/* Reason — required */}
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--rose)', display: 'block', marginBottom: 6 }}>
-            Reason for Push Back <span style={{ color: 'var(--rose)' }}>*</span>
-            <span style={{ fontWeight: 400, color: 'var(--chalk3)', marginLeft: 6 }}>(min 10 characters)</span>
-          </label>
-          <textarea
-            value={reason}
-            onChange={e => setReason(e.target.value)}
-            placeholder="Describe specifically why this stage is being sent back…"
-            rows={3}
-            style={{
-              width: '100%', padding: 10, borderRadius: 7,
-              border: `1px solid ${canSubmit ? 'rgba(251,191,36,.3)' : 'var(--wire2)'}`,
-              background: 'var(--bg2)', color: 'var(--chalk)',
-              fontFamily: 'var(--font)', fontSize: 12,
-              resize: 'vertical', boxSizing: 'border-box',
-            }}
-          />
-        </div>
-
-        {/* Optional comment */}
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--chalk2)', display: 'block', marginBottom: 6 }}>
-            Additional Notes <span style={{ fontWeight: 400, color: 'var(--chalk3)' }}>(optional)</span>
-          </label>
-          <textarea
-            value={comment}
-            onChange={e => setComment(e.target.value)}
-            placeholder="Any supporting context or corrective action required…"
-            rows={2}
-            style={{
-              width: '100%', padding: 10, borderRadius: 7,
-              border: '1px solid var(--wire2)', background: 'var(--bg2)',
-              color: 'var(--chalk)', fontFamily: 'var(--font)', fontSize: 12,
-              resize: 'vertical', boxSizing: 'border-box',
-            }}
-          />
-        </div>
-
-        {/* Actions */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-          <button
-            onClick={onClose}
-            disabled={isSubmitting}
-            style={{
-              padding: '7px 14px', borderRadius: 7, fontSize: 11, fontWeight: 600,
-              background: 'transparent', color: 'var(--chalk2)',
-              border: '1px solid var(--wire2)', cursor: 'pointer', fontFamily: 'var(--font)',
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitting || !canSubmit}
-            title={!canSubmit ? 'Enter at least 10 characters for the reason' : undefined}
-            style={{
-              padding: '7px 16px', borderRadius: 7, fontSize: 11, fontWeight: 700,
-              background: 'var(--rose)', color: '#050810', border: 'none',
-              cursor: isSubmitting || !canSubmit ? 'not-allowed' : 'pointer',
-              opacity: isSubmitting || !canSubmit ? 0.45 : 1,
-              fontFamily: 'var(--font)',
-            }}
-          >
-            {isSubmitting ? '…' : '← Push Back'}
-          </button>
-        </div>
+        <Textarea
+          label="Reason"
+          required
+          value={reason}
+          onChange={setReason}
+          placeholder="Specifically, why is this stage going back?"
+          rows={3}
+          hint={`At least ${MIN_REASON} characters (${trimmed.length}/${MIN_REASON})`}
+          style={{ marginBottom: 0 }}
+        />
+        <Textarea label="Additional notes (optional)" value={comment} onChange={setComment} placeholder="Supporting context or the corrective action needed" rows={2} style={{ marginBottom: 0 }} />
       </div>
-    </div>
+    </GlassModal>
   );
 }

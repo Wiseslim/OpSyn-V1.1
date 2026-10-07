@@ -11,20 +11,22 @@ import { staffApi } from '../../api/staff.api';
 import { useToast } from '../../components/ui/Toast';
 import type { ShiftAssignment, Shift } from '@shared';
 import type { ApiError } from '../../api/client';
+import { GlassModal, GlassSelect } from '../../components/glass';
+import { PageHeader } from '../../components/layout/Page';
 
 // ── Design primitives ─────────────────────────────────────────
 const card = (extra?: React.CSSProperties): React.CSSProperties => ({
-  background: 'white', border: '1px solid var(--color-border)',
+  background: 'var(--surface)', border: '1px solid var(--color-border)',
   borderRadius: 12, padding: 16, ...extra,
 });
 
 function Btn({ variant = 'ghost', onClick, children, style, disabled }: any) {
-  const bg  = variant === 'brand' ? 'var(--color-teal)'
+  const bg  = variant === 'brand' ? 'var(--brand)'
             : variant === 'rose'  ? 'rgba(220,38,38,.1)'
             : variant === 'jade'  ? 'rgba(22,163,74,.1)'
             : variant === 'amber' ? 'rgba(245,158,11,.1)'
             : 'rgba(100,116,139,.06)';
-  const col = variant === 'brand' ? 'white'
+  const col = variant === 'brand' ? 'var(--brand-contrast)'
             : variant === 'rose'  ? 'var(--color-red)'
             : variant === 'jade'  ? 'var(--color-green)'
             : variant === 'amber' ? 'var(--color-amber)'
@@ -44,10 +46,7 @@ function Sel({ label, value, onChange, options, id }: any) {
   return (
     <div style={{ marginBottom: 14 }}>
       <label htmlFor={id || label} style={{ display: 'block', fontSize: 9, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '.1em' }}>{label}</label>
-      <select id={id || label} value={value} onChange={e => onChange(e.target.value)} style={{ width: '100%', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '9px 12px', color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)', fontSize: 12, outline: 'none' }}>
-        <option value="">— {label} —</option>
-        {options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
+      <GlassSelect value={String(value)} onChange={v => onChange(v)} options={[...options.map((o: any) => ({ value: String(o.value), label: String(o.label) }))]} placeholder={`— ${label} —`} id={id || label} />
     </div>
   );
 }
@@ -146,18 +145,16 @@ export default function ShiftSchedulerPage() {
     <div style={{ overflow: 'auto', flex: 1, background: 'var(--color-surface)' }}>
 
       {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderBottom: '1px solid var(--color-border)', background: 'white' }}>
-        <div>
-          <div style={{ fontWeight: 800, fontSize: 18, color: 'var(--color-text-primary)', letterSpacing: '-.02em', fontFamily: 'var(--font-display)' }}>NOC Shift Scheduler</div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-            Week of {weekStart.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderBottom: '1px solid var(--color-border)', background: 'var(--surface)' }}>
+        <PageHeader
+          title="NOC shift scheduler"
+          lede={`Week of ${weekStart.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}`}
+          primary={<>
           <Btn onClick={() => setWeekStart(w => addDays(w, -7))}>← Prev</Btn>
           <Btn onClick={() => setWeekStart(getMondayOf(new Date()))}>This Week</Btn>
           <Btn onClick={() => setWeekStart(w => addDays(w, 7))}>Next →</Btn>
-        </div>
+          </>}
+        />
       </div>
 
       <div style={{ padding: 20 }}>
@@ -176,7 +173,7 @@ export default function ShiftSchedulerPage() {
         </div>
 
         {/* ── Weekly Grid ── */}
-        <div style={{ ...card({ padding: 0, overflowX: 'auto' }) }}>
+        <div style={{ ...card({ padding: 0, overflowX: 'auto' }) }} tabIndex={0} role="region" aria-label="Weekly rota">
           {isLoading ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 12 }}>Loading schedule…</div>
           ) : staff.length === 0 ? (
@@ -185,7 +182,7 @@ export default function ShiftSchedulerPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
               <thead>
                 <tr>
-                  <th style={{ textAlign: 'left', fontSize: 9, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--color-text-muted)', padding: '10px 14px', borderBottom: '1px solid var(--color-border)', minWidth: 140, position: 'sticky', left: 0, background: 'white', zIndex: 1 }}>
+                  <th style={{ textAlign: 'left', fontSize: 9, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--color-text-muted)', padding: '10px 14px', borderBottom: '1px solid var(--color-border)', minWidth: 140, position: 'sticky', left: 0, background: 'var(--surface)', zIndex: 1 }}>
                     Staff Member
                   </th>
                   {weekDays.map((d, i) => (
@@ -201,7 +198,7 @@ export default function ShiftSchedulerPage() {
                   const name = sp.first_name ? `${sp.first_name} ${sp.last_name}` : s.email;
                   return (
                     <tr key={s.id}>
-                      <td style={{ padding: '8px 14px', borderBottom: '1px solid var(--color-border)', position: 'sticky', left: 0, background: 'white', zIndex: 1 }}>
+                      <td style={{ padding: '8px 14px', borderBottom: '1px solid var(--color-border)', position: 'sticky', left: 0, background: 'var(--surface)', zIndex: 1 }}>
                         <div style={{ fontWeight: 500, fontSize: 12, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 }}>{name}</div>
                         <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{sp.role_name ?? ''}</div>
                       </td>
@@ -265,9 +262,7 @@ export default function ShiftSchedulerPage() {
 
       {/* ── Assign Modal ── */}
       {modal?.type === 'assign' && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}
-             onClick={() => setModal(null)}>
-          <div style={{ ...card({ width: 360, padding: 20 }) }} onClick={e => e.stopPropagation()}>
+        <GlassModal open onClose={() => setModal(null)} ariaLabel="Assign shift" size="sm">
             <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--color-text-primary)', marginBottom: 16 }}>Assign Shift</div>
             <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 12 }}>
               Date: <span style={{ color: 'var(--color-teal)', fontFamily: 'var(--font-mono)' }}>{modal.date}</span>
@@ -298,15 +293,12 @@ export default function ShiftSchedulerPage() {
                 {createAssignment.isPending ? 'Saving…' : 'Assign'}
               </Btn>
             </div>
-          </div>
-        </div>
+          </GlassModal>
       )}
 
       {/* ── Detail Modal ── */}
       {modal?.type === 'detail' && modal.assignment && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}
-             onClick={() => setModal(null)}>
-          <div style={{ ...card({ width: 340, padding: 20 }) }} onClick={e => e.stopPropagation()}>
+        <GlassModal open onClose={() => setModal(null)} ariaLabel="Shift assignment" size="sm">
             <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--color-text-primary)', marginBottom: 12 }}>Shift Assignment</div>
             {[
               ['Shift',  (modal.assignment.shift as any)?.name ?? '—'],
@@ -330,8 +322,7 @@ export default function ShiftSchedulerPage() {
                 </Btn>
               )}
             </div>
-          </div>
-        </div>
+          </GlassModal>
       )}
     </div>
   );

@@ -170,9 +170,184 @@ export interface ContextSchema {
   };
 }
 
+// ── Dynamic schema migrations ─────────────────────────────────
+//
+// Runtime DDL. Nothing here is generated as an Alembic file: the backend
+// executes the plan transactionally and records it in
+// schema_migration_history. Preview persists the plan as `pending`; apply
+// runs the SQL stored on that row, so what runs is what was reviewed.
+
+/** Must match ck_schema_migration_history_status on the backend. */
+export type MigrationStatus =
+  | 'pending' | 'in_progress' | 'applied' | 'failed' | 'rolled_back';
+
+export type MigrationChangeType =
+  | 'create_table' | 'add_column' | 'alter_column'
+  | 'drop_column' | 'add_index' | 'add_constraint';
+
+export interface MigrationFieldChange {
+  action:    'add' | 'modify' | 'delete';
+  field_key: string;
+  from_type: string | null;
+  to_type:   string;
+  options:   string[] | null;
+  warning:   string | null;
+}
+
+/** List rows omit the SQL; only the detail endpoint returns it. */
+export interface SchemaMigration {
+  id:                     string;
+  schema_id:              string;
+  migration_name:         string;
+  plan_hash:              string;
+  change_type:            MigrationChangeType;
+  status:                 MigrationStatus;
+  table_name:             string | null;
+  is_destructive:         boolean;
+  field_changes:          MigrationFieldChange[];
+  applied_by:             string | null;
+  applied_at:             string | null;
+  rolled_back_at:         string | null;
+  error_message:          string | null;
+  execution_duration_ms:  number | null;
+  created_at:             string | null;
+  /** Detail view only, and nullable: the backend withholds them from list
+   *  responses, and a destructive plan can have no rollback SQL at all. */
+  forward_sql?:           string | null;
+  rollback_sql?:          string | null;
+}
+
+/** The preview response. Warnings must be shown, not swallowed. */
+export interface MigrationPlan {
+  migration_id:       string;
+  schema_id:          string;
+  migration_name:     string;
+  change_type:        MigrationChangeType;
+  table_name:         string;
+  forward_sql:        string;
+  rollback_sql:       string;
+  field_changes:      MigrationFieldChange[];
+  affected_rows:      number;
+  estimated_duration: string;
+  reversible:         boolean;
+  is_destructive:     boolean;
+  warnings:           string[];
+}
+
+export interface MigrationListResult {
+  migrations: SchemaMigration[];
+  total:      number;
+  page:       number;
+  limit:      number;
+}
+
+/**
+ * The history endpoint's envelope: the page metadata sits alongside `data`,
+ * not inside it, so it needs its own shape rather than `AR<T[]>`.
+ */
+type MigrationListEnvelope = AR<SchemaMigration[]> & {
+  total: number;
+  page:  number;
+  limit: number;
+};
+
+export interface MigrationPreviewRequest {
+  changes: Array<{
+    action:       'add' | 'modify' | 'delete';
+    field_id:     string;
+    from_type?:   string;
+    from_options?: string[];
+  }>;
+}
+
 // ── API module ─────────────────────────────────────────────────
 
 export const formBuilderApi = {
+
+  // ── Dynamic schema migrations ────────────────────────────────
+
+  /**
+   * Plan field changes and persist the plan as `pending`.
+   *
+   * Nothing executes here. The response carries the exact forward and
+   * rollback SQL plus any warnings, and its migration_id is what apply()
+   * consumes.
+   */
+  previewMigration: (
+    schemaId: string,
+    body: MigrationPreviewRequest,
+  ): Promise<MigrationPlan> =>
+    client
+      .post<AR<MigrationPlan>>(
+        `/form-builder/schemas/${schemaId}/migrations/preview`,
+        body,
+      )
+      .then(r => r.data.data),
+
+  /** Execute a stored pending plan. Rejects 409 if already applied. */
+  applyMigration: (migrationId: string): Promise<{
+    migration_id:          string;
+    table_name:            string;
+    columns_added:         string[];
+    execution_duration_ms: number;
+    applied_at:            string | null;
+  }> =>
+    client
+      .post<AR<{
+        migration_id:          string;
+        table_name:            string;
+        columns_added:         string[];
+        execution_duration_ms: number;
+        applied_at:            string | null;
+      }>>(`/form-builder/migrations/${migrationId}/apply`)
+      .then(r => r.data.data),
+
+  /**
+   * Revert an applied migration.
+   *
+   * Refuses migrations flagged `is_destructive` at plan time: the rollback SQL
+   * restores a column's shape but not the values that were in it. The UI hides
+   * the action for those rows rather than offering one that must 400.
+   */
+  rollbackMigration: (migrationId: string): Promise<{
+    migration_id:   string;
+    rolled_back_at: string | null;
+  }> =>
+    client
+      .post<AR<{ migration_id: string; rolled_back_at: string | null }>>(
+        `/form-builder/migrations/${migrationId}/rollback`,
+      )
+      .then(r => r.data.data),
+
+  getMigrations: (params: {
+    schema_id: string;
+    status?:   MigrationStatus;
+    page?:     number;
+    limit?:    number;
+  }): Promise<MigrationListResult> =>
+    client
+      .get<MigrationListEnvelope>(
+        `/form-builder/schemas/${params.schema_id}/migrations`,
+        {
+          params: {
+            status: params.status || undefined,
+            page:   params.page   ?? 1,
+            limit:  params.limit  ?? 50,
+          },
+        },
+      )
+      .then(r => ({
+        migrations: r.data.data ?? [],
+        total:      r.data.total ?? 0,
+        page:       r.data.page  ?? 1,
+        limit:      r.data.limit ?? 50,
+      })),
+
+  /** Detail view, including the forward and rollback SQL. */
+  getMigration: (migrationId: string): Promise<SchemaMigration> =>
+    client
+      .get<AR<SchemaMigration>>(`/form-builder/migrations/${migrationId}`)
+      .then(r => r.data.data),
 
   // Field type catalogue (static, cache forever)
   getFieldTypes: (): Promise<FieldTypeInfo[]> =>

@@ -36,7 +36,7 @@ export default function TaskCard({ task, onClick }: Props) {
     <div
       onClick={() => onClick(task)}
       style={{
-        background:   'white',
+        background: 'var(--surface)',
         border:       '1px solid var(--color-border)',
         borderRadius: 'var(--radius-card)',
         padding:      '11px 11px 11px 14px',
@@ -132,7 +132,7 @@ export default function TaskCard({ task, onClick }: Props) {
                 width:           20,
                 height:          20,
                 borderRadius:    '50%',
-                background:      'var(--color-teal)',
+                background:      'var(--brand)',
                 display:         'flex',
                 alignItems:      'center',
                 justifyContent:  'center',

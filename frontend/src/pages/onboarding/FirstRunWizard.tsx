@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { infrastructureApi, settingsApi, smartoltApi, staffApi } from '../../api/index';
 import OpsynMark from '../../components/brand/OpsynMark';
+import { GlassSelect } from '../../components/glass';
 
 type StepId = 1 | 2 | 3 | 4 | 5;
 
@@ -80,20 +81,12 @@ function Step1({ onNext }: { onNext: () => void }) {
       </div>
 
       <label style={labelStyle}>Timezone</label>
-      <select
-        value={timezone}
-        onChange={e => setTimezone(e.target.value)}
-        style={inputStyle}
-      >
-        {[
+      <GlassSelect value={String(timezone)} onChange={v => setTimezone(v)} options={[...[
           'Africa/Lagos', 'Africa/Nairobi', 'Africa/Johannesburg',
           'Europe/London', 'Europe/Paris', 'America/New_York',
           'America/Los_Angeles', 'Asia/Dubai', 'Asia/Kolkata',
           'Australia/Sydney', 'Pacific/Auckland',
-        ].map(tz => (
-          <option key={tz} value={tz}>{tz}</option>
-        ))}
-      </select>
+        ].map((tz) => ({ value: String(tz), label: String(tz) }))]} ariaLabel="Time zone" />
       <p style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
         Detected: {Intl.DateTimeFormat().resolvedOptions().timeZone}
       </p>
@@ -430,7 +423,7 @@ const inputStyle: React.CSSProperties = {
 };
 const btnStyle: React.CSSProperties = {
   width: '100%', padding: '11px 16px', marginTop: 24,
-  background: 'var(--accent)', color: '#fff',
+  background: 'var(--accent)', color: 'var(--brand-contrast)',
   border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer',
 };
 const errorStyle: React.CSSProperties = {

@@ -30,17 +30,18 @@ const BORDERS: Record<SpinnerSize, number> = {
   xl: 3,
 };
 
-export function Spinner({ size = 'md', color = 'var(--cyan)', style, center }: SpinnerProps) {
+export function Spinner({ size = 'md', color = 'var(--accent-text)', style, center }: SpinnerProps) {
   const dim    = DIMS[size];
   const border = BORDERS[size];
 
   const spinner = (
-    <span style={{
+    <span role="status" aria-label="Loading" style={{
       display:        'inline-block',
       width:          dim,
       height:         dim,
       borderRadius:   '50%',
-      border:         `${border}px solid rgba(255,255,255,.1)`,
+      // Track visible on both themes (was translucent white — invisible on light)
+      border:         `${border}px solid var(--border)`,
       borderTopColor: color,
       animation:      'spin .6s linear infinite',
       flexShrink:     0,

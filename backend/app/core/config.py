@@ -58,6 +58,23 @@ class Settings(BaseSettings):
     # ── Monitoring ───────────────────────────────────────────
     SENTRY_DSN: str = ""
 
+    # ── Dynamic Form Builder ─────────────────────────────────
+    # Enable automatic schema migrations (requires forms.admin permission)
+    ENABLE_DYNAMIC_MIGRATIONS: bool = True
+
+    # Table naming pattern for dynamic entity tables
+    # Pattern: tenant_{tenant_id}_{schema_machine_name}_data
+    DYNAMIC_TABLE_PREFIX: str = "tenant"
+    DYNAMIC_TABLE_SUFFIX: str = "data"
+
+    # Migration settings
+    MAX_MIGRATION_DURATION_SECONDS: int = 300  # 5 minutes timeout
+    MIGRATION_WARNING_ROW_COUNT: int = 100000  # Warn if table has 100K+ rows
+
+    # Feature flags for gradual rollout
+    ENABLE_MOBILE_FORM_EXPORT: bool = True     # XForm export for KoboCollect
+    ENABLE_MIGRATION_ROLLBACK: bool = True     # Allow rollback of migrations
+
     @property
     def ALLOWED_ORIGINS(self) -> list[str]:
         return [o.strip() for o in self.ALLOWED_ORIGINS_STR.split(",") if o.strip()]

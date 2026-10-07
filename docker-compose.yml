@@ -49,6 +49,27 @@ services:
       retries: 5
       start_period: 10s
 
+  # ── Alembic migrations ──────────────────────────────────────
+  # One-shot: runs `alembic upgrade head` and exits. backend/celery/
+  # celery-beat all wait on this completing successfully instead of
+  # each racing to run migrations themselves on startup — without
+  # this, a fresh postgres volume has none of the app's tables and
+  # every DB query fails with UndefinedTableError.
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: ../infrastructure/docker/Dockerfile.backend
+    container_name: opsyn_migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://opsyn:opsyn_dev_pass@postgres:5432/opsyn"
+      SECRET_KEY:   "dev-secret-key-change-in-production-minimum-32-chars!!"
+    volumes:
+      - ./backend:/app
+    command: alembic upgrade head
+
   # ── FastAPI Backend ────────────────────────────────────────
   backend:
     build:
@@ -61,6 +82,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       DATABASE_URL:        "postgresql+asyncpg://opsyn:opsyn_dev_pass@postgres:5432/opsyn"
       REDIS_URL:           "redis://redis:6379/0"
@@ -87,6 +110,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       DATABASE_URL:      "postgresql+asyncpg://opsyn:opsyn_dev_pass@postgres:5432/opsyn"
       REDIS_URL:         "redis://redis:6379/0"
@@ -108,6 +133,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       DATABASE_URL:      "postgresql+asyncpg://opsyn:opsyn_dev_pass@postgres:5432/opsyn"
       REDIS_URL:         "redis://redis:6379/0"
@@ -130,6 +157,10 @@ services:
     environment:
       VITE_API_BASE_URL: "http://localhost:8000/api/v1"
       VITE_APP_NAME:     "Opsyn"
+      # Windows/macOS bind mounts don't forward file-change events into the
+      # container, so Vite never saw edits. Poll instead.
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL:   "300"
     volumes:
       - ./frontend:/app
       - /app/node_modules

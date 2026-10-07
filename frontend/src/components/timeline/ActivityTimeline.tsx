@@ -4,6 +4,7 @@
 // and onboarding requests. Blueprint Section 4 + 15.2.
 // ============================================================
 
+import { RefreshCw } from 'lucide-react';
 import React, { useState } from 'react';
 import type { TimelineEntityType } from './types';
 import { TimelineEvent } from './TimelineEvent';
@@ -16,6 +17,7 @@ import {
   useOutageTimeline,
   useOnboardingTimeline,
 } from '../../hooks/index';
+import s from './ActivityTimeline.module.css';
 
 // ── Props ─────────────────────────────────────────────────────
 
@@ -87,60 +89,29 @@ export function ActivityTimeline({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0, ...style }}>
 
       {/* Header */}
-      <div style={{
-        display:        'flex',
-        alignItems:     'center',
-        justifyContent: 'space-between',
-        marginBottom:   14,
-        flexWrap:       'wrap',
-        gap:            8,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--chalk2)', textTransform: 'uppercase', letterSpacing: '.08em' }}>
-            Activity
-          </span>
+      <div className={s.header}>
+        <span className={s.title}>
+          Activity
           {rawEntries.length > 0 && (
-            <span style={{
-              fontSize: 10, fontWeight: 600,
-              color: 'var(--chalk3)', background: 'var(--bg4)',
-              padding: '1px 6px', borderRadius: 4,
-            }}>
+            <span className={s.count}>
               {rawEntries.length}
+              <span className="sr-only"> {rawEntries.length === 1 ? 'event' : 'events'}</span>
             </span>
           )}
-        </div>
+        </span>
 
-        <div style={{ display: 'flex', gap: 4 }}>
-          {showFilter && (['all', 'comments', 'system'] as const).map(f => (
-            <button
-              key={f}
-              onClick={() => setFilterType(f)}
-              style={{
-                background:   filterType === f ? 'var(--bg3)' : 'transparent',
-                border:       '1px solid ' + (filterType === f ? 'var(--wire2)' : 'transparent'),
-                borderRadius: 'var(--r)',
-                padding:      '3px 8px',
-                color:        filterType === f ? 'var(--chalk)' : 'var(--chalk3)',
-                fontSize:     10,
-                fontWeight:   600,
-                cursor:       'pointer',
-                fontFamily:   'var(--font)',
-                textTransform:'capitalize',
-              }}
-            >
-              {f}
-            </button>
-          ))}
-          <button
-            onClick={() => refetch()}
-            title="Refresh timeline"
-            style={{
-              background: 'none', border: 'none',
-              color: 'var(--chalk3)', fontSize: 12,
-              cursor: 'pointer', padding: '2px 6px',
-            }}
-          >
-            ↻
+        <div className={s.controls}>
+          {showFilter && (
+            <div className={s.segment} role="group" aria-label="Show">
+              {(['all', 'comments', 'system'] as const).map(f => (
+                <button key={f} type="button" className={s.seg} aria-pressed={filterType === f} onClick={() => setFilterType(f)}>
+                  {f}
+                </button>
+              ))}
+            </div>
+          )}
+          <button type="button" className={s.icon} onClick={() => refetch()} aria-label="Refresh activity" title="Refresh activity">
+            <RefreshCw size={16} aria-hidden="true" />
           </button>
         </div>
       </div>

@@ -13,6 +13,7 @@ import { tasksApi, type DeptStaffMember, type ArchiveSearchResult } from '../../
 import { orgApi } from '../../../api/index';
 import { useUIStore } from '../../../store/ui.store';
 import type { ApiError } from '../../../api/client';
+import { GlassModal, GlassSelect } from '../../../components/glass';
 
 const INPUT: React.CSSProperties = {
   width: '100%', background: 'var(--bg3)', border: '1px solid var(--wire2)',
@@ -120,6 +121,15 @@ function ArchiveSearchPopover({
 
 // ── Main Modal ────────────────────────────────────────────────
 
+/** Every screen of the wizard shares one glass dialog (focus trap, Escape, scrim) */
+function Frame({ label, onClose, children }: { label: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <GlassModal open onClose={onClose} ariaLabel={label} size="md">
+      {children}
+    </GlassModal>
+  );
+}
+
 export default function NewTaskModal({ open, onClose, initialScope }: Props) {
   const [step, setStep]       = useState<Step>(initialScope ? 'form' : 'scope');
   const [scope, setScope]     = useState<'internal' | 'external'>(initialScope ?? 'internal');
@@ -217,21 +227,10 @@ export default function NewTaskModal({ open, onClose, initialScope }: Props) {
 
   if (!open) return null;
 
-  const overlay: React.CSSProperties = {
-    position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 900,
-  };
-  const card: React.CSSProperties = {
-    background: 'var(--bg2)', borderRadius: 14, padding: 28,
-    width: 560, maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto',
-    border: '1px solid var(--wire2)', boxShadow: '0 16px 48px rgba(0,0,0,.5)',
-  };
-
   // ── Success screen ────────────────────────────────────────
   if (successData) {
     return (
-      <div style={overlay} onClick={onClose}>
-        <div style={card} onClick={e => e.stopPropagation()}>
+      <Frame onClose={onClose} label="Task created">
           <div style={{ textAlign: 'center', padding: '20px 0' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>✓</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--chalk)', marginBottom: 8 }}>External Task Created</div>
@@ -243,16 +242,14 @@ export default function NewTaskModal({ open, onClose, initialScope }: Props) {
             </div>
             <button style={BTN(true)} onClick={onClose}>Done</button>
           </div>
-        </div>
-      </div>
+      </Frame>
     );
   }
 
   // ── Step 1: Scope selection ───────────────────────────────
   if (step === 'scope') {
     return (
-      <div style={overlay} onClick={onClose}>
-        <div style={card} onClick={e => e.stopPropagation()}>
+      <Frame onClose={onClose} label="Create new task">
           <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--chalk)', marginBottom: 6 }}>Create New Task</div>
           <div style={{ fontSize: 12, color: 'var(--chalk3)', marginBottom: 24 }}>Select how this task should be routed.</div>
 
@@ -282,8 +279,7 @@ export default function NewTaskModal({ open, onClose, initialScope }: Props) {
           <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end' }}>
             <button style={BTN()} onClick={onClose}>Cancel</button>
           </div>
-        </div>
-      </div>
+      </Frame>
     );
   }
 
@@ -297,8 +293,7 @@ export default function NewTaskModal({ open, onClose, initialScope }: Props) {
     );
 
     return (
-      <div style={overlay} onClick={onClose}>
-        <div style={card} onClick={e => e.stopPropagation()}>
+      <Frame onClose={onClose} label="New internal task">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <div>
               <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--chalk)' }}>Internal Task</div>
@@ -327,12 +322,7 @@ export default function NewTaskModal({ open, onClose, initialScope }: Props) {
               <input type="date" style={INPUT} value={iForm.deadline} onChange={e => setIForm(p => ({ ...p, deadline: e.target.value }))} />
             </Field>
             <Field label="Priority">
-              <select style={INPUT} value={iForm.priority} onChange={e => setIForm(p => ({ ...p, priority: e.target.value }))}>
-                <option value="critical">Critical</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
+              <GlassSelect value={String(iForm.priority)} onChange={v => setIForm(p => ({ ...p, priority: v }))} options={[{ value: 'critical', label: 'Critical' }, { value: 'high', label: 'High' }, { value: 'medium', label: 'Medium' }, { value: 'low', label: 'Low' }]} ariaLabel="Priority" />
             </Field>
           </div>
 
@@ -422,8 +412,7 @@ export default function NewTaskModal({ open, onClose, initialScope }: Props) {
               {createMut.isPending ? 'Creating…' : 'Create Internal Task'}
             </button>
           </div>
-        </div>
-      </div>
+      </Frame>
     );
   }
 
@@ -434,8 +423,7 @@ export default function NewTaskModal({ open, onClose, initialScope }: Props) {
   const selectedDept = depts.find((d: any) => d.id === eForm.department_id);
 
   return (
-    <div style={overlay} onClick={onClose}>
-      <div style={card} onClick={e => e.stopPropagation()}>
+    <Frame onClose={onClose} label="New external task">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--chalk)' }}>External Task</div>
@@ -490,12 +478,7 @@ export default function NewTaskModal({ open, onClose, initialScope }: Props) {
             <input type="date" style={INPUT} value={eForm.deadline} onChange={e => setEForm(p => ({ ...p, deadline: e.target.value }))} />
           </Field>
           <Field label="Priority">
-            <select style={INPUT} value={eForm.priority} onChange={e => setEForm(p => ({ ...p, priority: e.target.value }))}>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
+            <GlassSelect value={String(eForm.priority)} onChange={v => setEForm(p => ({ ...p, priority: v }))} options={[{ value: 'critical', label: 'Critical' }, { value: 'high', label: 'High' }, { value: 'medium', label: 'Medium' }, { value: 'low', label: 'Low' }]} ariaLabel="Priority" />
           </Field>
         </div>
 
@@ -541,7 +524,6 @@ export default function NewTaskModal({ open, onClose, initialScope }: Props) {
             {createMut.isPending ? 'Creating…' : 'Create External Task'}
           </button>
         </div>
-      </div>
-    </div>
+    </Frame>
   );
 }

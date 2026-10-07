@@ -8,6 +8,8 @@ import { rolesApi } from '../../api/index';
 import { useUIStore } from '../../store/ui.store';
 import { Button, Badge, Modal, Input, Select, Textarea } from '../../components/ui';
 import type { ApiError } from '../../api/client';
+import { Plus } from 'lucide-react';
+import { Page, PageHeader } from '../../components/layout/Page';
 
 function useToast() {
   const { addToast } = useUIStore();
@@ -96,26 +98,19 @@ export default function RolesPage() {
   const roles = Array.isArray(data) ? data : (data as any)?.items ?? [];
 
   return (
-    <div style={{ overflow: 'auto', flex: 1, background: 'var(--color-surface)' }}>
-      <div style={{ padding: '20px 24px' }}>
+    <Page>
 
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
-          <div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: 'var(--color-text-primary)', letterSpacing: '-.03em', margin: 0 }}>
-              Roles & Permissions
-            </h1>
-            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, marginBottom: 0 }}>
-              {roles.length} role{roles.length !== 1 ? 's' : ''} defined · Level-based access control
-            </p>
-          </div>
-          <Button variant="primary" size="sm" onClick={() => setAddModal(true)}>+ Add Role</Button>
-        </div>
+        <PageHeader
+        title={<>Roles & Permissions</>}
+        lede={<>{roles.length} role{roles.length !== 1 ? 's' : ''} defined · Level-based access control</>}
+        primary={<Button variant="primary" size="sm" onClick={() => setAddModal(true)} leftIcon={<Plus size={16} aria-hidden="true" />}>Add Role</Button>}
+      />
 
         <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 20 }}>
 
           {/* Defined Roles */}
-          <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', overflow: 'hidden' }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '.06em', textTransform: 'uppercase' }}>
                 Defined Roles
@@ -154,13 +149,13 @@ export default function RolesPage() {
           </div>
 
           {/* Permission Matrix */}
-          <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', overflow: 'hidden' }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '.06em', textTransform: 'uppercase' }}>
                 Permission Matrix
               </span>
             </div>
-            <div style={{ overflowX: 'auto' }}>
+            <div style={{ overflowX: 'auto' }} tabIndex={0} role="region" aria-label="Roles table">
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                 <thead>
                   <tr style={{ background: 'var(--color-surface)' }}>
@@ -176,7 +171,7 @@ export default function RolesPage() {
                 </thead>
                 <tbody>
                   {PERM_MATRIX.map((row, i) => (
-                    <tr key={row.permission} style={{ background: i % 2 === 0 ? 'white' : 'var(--color-surface)' }}>
+                    <tr key={row.permission} style={{ background: i % 2 === 0 ? 'var(--surface)' : 'var(--color-surface)' }}>
                       <td style={{ padding: '7px 16px', color: 'var(--color-text-primary)', fontWeight: 500, borderBottom: '1px solid var(--color-border)', fontSize: 11 }}>
                         {row.permission}
                       </td>
@@ -197,7 +192,7 @@ export default function RolesPage() {
           </div>
 
         </div>
-      </div>
+      
 
       {/* Add Role modal */}
       <Modal
@@ -222,6 +217,6 @@ export default function RolesPage() {
         <Select label="Access Level *" value={form.level} onChange={v => set('level', v)} options={LEVEL_OPTS} />
         <Textarea label="Description" value={form.description} onChange={v => set('description', v)} placeholder="Role responsibilities…" rows={2} />
       </Modal>
-    </div>
+    </Page>
   );
 }

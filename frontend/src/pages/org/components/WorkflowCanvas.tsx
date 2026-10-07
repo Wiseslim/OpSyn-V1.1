@@ -7,6 +7,7 @@ import type { WorkflowEdge, AddEdgePayload } from '../../../types/workflow.types
 import type { Department } from '@shared';
 import { WorkflowStageNode } from './WorkflowStageNode';
 import { useAddEdge, useRemoveEdge, useUpdateEdge } from '../../../hooks/useWorkflows';
+import { GlassSelect } from '../../../components/glass';
 
 interface WorkflowCanvasProps {
   workflowId: string;
@@ -183,21 +184,7 @@ export function WorkflowCanvas({
             }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--chalk)' }}>Add next stage</div>
 
-              <select
-                value={addDeptId}
-                onChange={e => setAddDeptId(e.target.value)}
-                style={{
-                  padding: '7px 10px', borderRadius: 7,
-                  border: '1px solid var(--wire)', background: 'var(--bg)',
-                  color: 'var(--chalk)', fontSize: 12, fontFamily: 'var(--font)',
-                  width: '100%',
-                }}
-              >
-                <option value="">Select department…</option>
-                {departments.map(d => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
+              <GlassSelect value={String(addDeptId)} onChange={v => setAddDeptId(v)} options={[...departments.map((d) => ({ value: String(d.id), label: String(d.name) }))]} placeholder={'Select department…'} ariaLabel="Department" />
 
               <input
                 type="text"

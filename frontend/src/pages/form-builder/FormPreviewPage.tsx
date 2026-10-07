@@ -19,7 +19,7 @@ export default function FormPreviewPage() {
     return (
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: '100%', color: 'rgba(255,255,255,0.30)',
+        height: '100%', color: 'var(--text-muted)',
         fontFamily: 'var(--font-display)', fontSize: 13,
       }}>
         No schema selected.
@@ -48,7 +48,7 @@ export default function FormPreviewPage() {
           onClick={() => navigate(`/form-builder/${schemaId}`)}
           style={{
             background: 'none', border: 'none',
-            cursor: 'pointer', color: 'rgba(255,255,255,0.45)',
+            cursor: 'pointer', color: 'var(--text-muted)',
             fontFamily: 'var(--font-display)', fontSize: 12,
             display: 'flex', alignItems: 'center', gap: 4,
           }}
@@ -103,7 +103,7 @@ export default function FormPreviewPage() {
 
           <div style={{
             marginTop: 16, textAlign: 'center',
-            fontSize: 11, color: 'rgba(255,255,255,0.25)',
+            fontSize: 11, color: 'var(--text-muted)',
             fontFamily: 'var(--font-display)',
           }}>
             Preview mode — submissions are real and will appear in the submissions log

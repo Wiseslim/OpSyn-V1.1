@@ -129,7 +129,9 @@ describe('PushBackModal', () => {
   it('closes on Escape key', () => {
     const onClose = vi.fn();
     wrap(<PushBackModal {...baseProps} onClose={onClose} />);
-    fireEvent.keyDown(window, { key: 'Escape' });
+    // GlassModal dismisses on Escape pressed inside the dialog (Floating UI
+    // listens on document), not on a bare window event
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledOnce();
   });
 
@@ -237,7 +239,9 @@ describe('AdminDeleteModal', () => {
   it('calls onClose on Escape key', () => {
     const onClose = vi.fn();
     wrap(<AdminDeleteModal {...baseProps} onClose={onClose} />);
-    fireEvent.keyDown(window, { key: 'Escape' });
+    // GlassModal dismisses on Escape pressed inside the dialog (Floating UI
+    // listens on document), not on a bare window event
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledOnce();
   });
 });
@@ -284,25 +288,29 @@ describe('ForwardModal', () => {
     }
   });
 
-  it('calls onClose when ✕ is clicked', async () => {
+  it('calls onClose when the close button is clicked', async () => {
     const onClose = vi.fn();
     wrap(<ForwardModal {...baseProps} onClose={onClose} />);
     // Wait for staff data to load so the component is stable before clicking
-    await waitFor(() => {
-      const closeBtns = screen.getAllByRole('button');
-      const xBtn = closeBtns.find(b => b.textContent === '✕');
-      expect(xBtn).toBeTruthy();
-    });
-    const closeBtns = screen.getAllByRole('button');
-    const xBtn = closeBtns.find(b => b.textContent === '✕')!;
-    await userEvent.click(xBtn);
+    await screen.findByText('Alice Smith');
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('lists colleagues as radio choices and forwards to the one picked', async () => {
+    const onConfirm = vi.fn();
+    wrap(<ForwardModal {...baseProps} onConfirm={onConfirm} />);
+    await userEvent.click(await screen.findByRole('radio', { name: /bob jones/i }));
+    await userEvent.click(screen.getByRole('button', { name: /forward task/i }));
+    expect(onConfirm).toHaveBeenCalledWith('user-2', undefined);
   });
 
   it('closes on Escape key', () => {
     const onClose = vi.fn();
     wrap(<ForwardModal {...baseProps} onClose={onClose} />);
-    fireEvent.keyDown(window, { key: 'Escape' });
+    // GlassModal dismisses on Escape pressed inside the dialog (Floating UI
+    // listens on document), not on a bare window event
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledOnce();
   });
 });

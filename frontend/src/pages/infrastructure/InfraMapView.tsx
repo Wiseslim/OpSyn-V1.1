@@ -1,686 +1,556 @@
 // ============================================================
-// OPSYN INFRA MAP VIEW — src/pages/infrastructure/InfraMapView.tsx
-// Leaflet-based GIS map with 8 toggleable layers:
-//   1. Site Markers      (OLT/POP circles coloured by utilisation)
-//   2. Fiber Routes      (polylines coloured by status)
-//   3. Util Heatmap      (fill circles coloured by capacity %)
-//   4. OLTs              (uploaded OLT assets — cyan squares)
-//   5. Cabinets          (uploaded distribution cabinets — amber)
-//   6. Splitter Boxes    (uploaded splitters — purple, level-differentiated)
-//   7. On-Call Staff     (shift assignments for today — hidden by default)
-//   8. Coverage Demand   (subscriber locations — hidden by default)
+// OPSYN INFRA MAP — the network workspace (console surface)
+//
+// Map first: the map fills the workspace; everything else floats over it as
+// glass — search (top left), layers panel, view/basemap toolbar (top right),
+// zoom toolbar (bottom right), inspector (right; a bottom sheet on phones).
+//
+//   Asset KIND  → shape   (site ◉ · OLT ■ · cabinet ▬ · splitter ▼/▽)
+//   Asset STATE → colour  (neutral unless it needs attention)
+//   Incidents   → severity shapes (⬣ ▲ ◆ ●) at the OLT they reference
+//   Routes      → dash pattern by state, weight by cable role
+//
+// Clusters at low zoom (bubble ring = worst state inside). The List view is
+// the accessible, searchable equivalent of the map. Nothing is placed without
+// real coordinates; on-call staff have none, so they are listed, not drawn.
 // ============================================================
 
-import { useState, useMemo, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import {
-  MapContainer,
-  TileLayer,
-  LayersControl,
-  LayerGroup,
-  CircleMarker,
-  Circle,
-  Polyline,
-  Popup,
-  useMap,
-} from 'react-leaflet';
-import type { LatLngBoundsExpression } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-
-import { infrastructureApi, shiftsApi } from '../../api/index';
+import L from 'leaflet';
+import { useQuery } from '@tanstack/react-query';
+import { Layers, List, Map as MapIcon, Maximize2, Minus, Moon, MoreHorizontal, Plus, Sun } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  Circle, CircleMarker, MapContainer, Marker, Polyline, ScaleControl, Tooltip, useMap,
+} from 'react-leaflet';
+import MarkerClusterGroup from 'react-leaflet-cluster';
 import type {
-  InfraMapData,
-  InfraMapSite,
-  InfraMapNode,
-  InfraMapRoute,
-  InfraMapCabinet,
-  InfraMapOLT,
-  InfraMapSplitter,
-  InfraUtilisationPoint,
+  InfraMapData, InfraMapRoute, InfraMapSite, InfraMapSplitter, InfraUtilisationPoint, OutageIncident, OutageSeverity,
+  ShiftAssignment,
 } from '@shared';
 
-// ── colour helpers ────────────────────────────────────────────
+import { infrastructureApi, outageApi, shiftsApi } from '../../api/index';
+import { GlassButton, GlassMenu, GlassPanel, GlassToolbar, GlassToolbarDivider } from '../../components/glass';
+import { SEVERITY_META, SEVERITY_ORDER } from '../../components/status/severity';
+import { BREAKPOINTS, useMediaQuery } from '../../hooks/useMediaQuery';
+import { useThemeStore } from '../../store/theme.store';
+import { BASEMAPS, type Basemap } from '../../lib/basemap';
+import { ResilientTileLayer } from '../../components/map/ResilientTileLayer';
+import AssetList from './map/AssetList';
+import LayerPanel from './map/LayerPanel';
+import { DEFAULT_LAYERS, type LayerCounts, type LayerKey, type LayerState } from './map/layers';
+import { clusterIcon, createIconCache, type IconCache, type MapPalette } from './map/mapIcons';
+import MapInspector, { type Selection } from './map/MapInspector';
+import {
+  buildAssetIndex, capacityState, KIND_LABEL, nodePosition, routeStyle, traceSplitter, worstSeverity,
+  type AssetKind, type AssetState, type MapAsset, type TraceHop,
+} from './map/mapModel';
+import { useMapPalette } from './map/mapPalette';
+import MapSearch from './map/MapSearch';
+import s from './map/InfraMap.module.css';
 
-function siteMarkerColor(site: InfraMapSite, utilPct: number): string {
-  if (site.has_alert)             return '#f87171';
-  if (site.status !== 'active')   return '#6b7280';
-  if (utilPct >= 90)              return '#f87171';
-  if (utilPct >= 70)              return '#fb923c';
-  return '#4ade80';
+// Leaflet focuses the map on mousedown, then restores only the WINDOW's
+// scroll. OpSyn scrolls inside <main>, so the focus scrolled the page between
+// mousedown and mouseup and the click on a marker was lost.
+type KeyboardHandler = { _onMouseDown: () => void; _focused: boolean; _map: L.Map };
+// (the handler class is real but missing from @types/leaflet)
+const keyboardHandler = (L.Map as unknown as { Keyboard: { prototype: KeyboardHandler } }).Keyboard.prototype;
+keyboardHandler._onMouseDown = function (this: KeyboardHandler) {
+  if (!this._focused) this._map.getContainer().focus({ preventScroll: true });
+};
+
+// ── Persisted view preferences (per viewer; safe when storage is blocked) ──
+
+const LAYERS_KEY = 'opsyn-map-layers';
+const BASEMAP_KEY = 'opsyn-map-basemap';
+
+function readLayers(): LayerState {
+  try {
+    const raw = localStorage.getItem(LAYERS_KEY);
+    return raw ? { ...DEFAULT_LAYERS, ...(JSON.parse(raw) as Partial<LayerState>) } : DEFAULT_LAYERS;
+  } catch { return DEFAULT_LAYERS; }
 }
 
-function routeColor(status: string): string {
-  if (status === 'active')                             return '#4ade80';
-  if (status === 'degraded' || status === 'maintenance') return '#fb923c';
-  if (status === 'cut'      || status === 'inactive')  return '#f87171';
-  return '#22d3ee';
+/** The viewer's own basemap choice, or null if they haven't made one */
+function readBasemap(): Basemap | null {
+  try {
+    const id = localStorage.getItem(BASEMAP_KEY);
+    return BASEMAPS.find(b => b.id === id) ?? null;
+  } catch { return null; }
 }
 
-function routeWeight(cableType?: string): number {
-  if (!cableType) return 2;
-  const ct = cableType.toLowerCase();
-  if (ct.includes('trunk') || ct.includes('core')) return 4;
-  if (ct.includes('dist')  || ct.includes('feed')) return 3;
-  return 2;
+const DARK_MAP  = BASEMAPS.find(b => b.id === 'osm-dark')!;
+const LIGHT_MAP = BASEMAPS.find(b => b.id === 'osm')!;
+
+function store(key: string, value: string) {
+  try { localStorage.setItem(key, value); } catch { /* preference only */ }
 }
 
-function utilHeatColor(pct: number): string {
-  if (pct >= 90) return '#f87171';
-  if (pct >= 70) return '#fb923c';
-  return '#4ade80';
+const LAYER_OF: Record<AssetKind, LayerKey> = { site: 'sites', olt: 'olts', cabinet: 'cabinets', splitter: 'splitters' };
+const STATE_RANK: Record<AssetState, number> = { critical: 3, watch: 2, normal: 1, offline: 0 };
+/** Clusters break apart at street level, so an asset picked from search is always visible */
+const UNCLUSTER_ZOOM = 16;
+
+/** Local calendar date — the on-call rota is by local day, not UTC */
+function localDate(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function subscriberColor(serviceType: string): string {
-  switch (serviceType.toUpperCase()) {
-    case 'FTTH':     return '#38bdf8';
-    case 'FTTB':     return '#818cf8';
-    case 'FTTC':     return '#fb923c';
-    case 'WIRELESS': return '#facc15';
-    default:         return '#94a3b8';
-  }
-}
+interface Subscriber { id: string; customer_id?: string; service_type?: string; status?: string; latitude?: number; longitude?: number }
 
-// Splitter First-Level = indigo, Second-Level = violet
-function splitterColor(level: string): string {
-  return level === 'Second-Level' ? '#c084fc' : '#818cf8';
-}
+// ── Map-side helpers (must live inside <MapContainer>) ─────────
 
-// ── BoundsAdjuster ────────────────────────────────────────────
-// Fits map to all geo-referenced points (sites + uploaded assets).
-
-function BoundsAdjuster({ points }: { points: [number, number][] }) {
+/** Hands the Leaflet map to the workspace and names it for screen readers. */
+function MapBridge({ onReady, label }: { onReady: (m: L.Map) => void; label: string }) {
   const map = useMap();
+  useEffect(() => { onReady(map); }, [map, onReady]);
   useEffect(() => {
-    if (points.length < 2) return;
-    const bounds = points.reduce<[[number, number], [number, number]]>(
-      ([min, max], [lat, lng]) => [
-        [Math.min(min[0], lat), Math.min(min[1], lng)],
-        [Math.max(max[0], lat), Math.max(max[1], lng)],
-      ],
-      [[points[0][0], points[0][1]], [points[0][0], points[0][1]]],
-    );
-    try {
-      map.fitBounds(bounds as LatLngBoundsExpression, { padding: [40, 40], maxZoom: 13 });
-    } catch {
-      // no-op if bounds invalid
-    }
-  }, [map, points.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    const el = map.getContainer();
+    el.setAttribute('role', 'application');
+    el.setAttribute('aria-label', label);
+  }, [map, label]);
   return null;
 }
 
-// ── Detail panels ─────────────────────────────────────────────
-
-interface PanelSite  extends InfraMapSite  { utilPct: number; utilUsed: number; utilTotal: number }
-interface PanelRoute extends InfraMapRoute { fromName?: string; toName?: string }
-
-const panelBase: React.CSSProperties = {
-  position: 'absolute', top: 12, right: 12, zIndex: 1000,
-  background: 'var(--bg2)', border: '1px solid var(--wire2)', borderRadius: 12,
-  padding: 16, boxShadow: '0 8px 32px rgba(0,0,0,.4)',
-};
-
-function PanelRow({ label, val }: { label: string; val: string | number }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--wire)', fontSize: 11 }}>
-      <span style={{ color: 'var(--chalk3)' }}>{label}</span>
-      <span style={{ color: 'var(--chalk)', fontWeight: 500 }}>{val}</span>
-    </div>
-  );
+/** Cursor position + zoom, written straight to the status chip (no React re-render per mousemove). */
+function StatusReporter({ target }: { target: RefObject<HTMLDivElement> }) {
+  const map = useMap();
+  useEffect(() => {
+    const write = (ll?: L.LatLng) => {
+      const [pos, zoom] = target.current?.children ?? [];
+      if (ll && pos) pos.textContent = `${ll.lat.toFixed(5)}, ${ll.lng.toFixed(5)}`;
+      if (zoom) zoom.textContent = `z${map.getZoom()}`;
+    };
+    const onMove = (e: L.LeafletMouseEvent) => write(e.latlng);
+    const onZoom = () => write();
+    map.on('mousemove', onMove);
+    map.on('zoomend', onZoom);
+    onZoom();
+    return () => { map.off('mousemove', onMove); map.off('zoomend', onZoom); };
+  }, [map, target]);
+  return null;
 }
 
-function CloseBtn({ onClose }: { onClose: () => void }) {
-  return (
-    <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--chalk3)', fontSize: 16, lineHeight: 1 }}>×</button>
-  );
+/** Fits the whole network once, when assets first arrive. */
+function FitOnce({ points }: { points: [number, number][] }) {
+  const map = useMap();
+  const done = useRef(false);
+  useEffect(() => {
+    if (done.current || points.length === 0) return;
+    done.current = true;
+    if (points.length === 1) map.setView(points[0], 14);
+    else map.fitBounds(L.latLngBounds(points), { padding: [48, 48], maxZoom: 14 });
+  }, [map, points]);
+  return null;
 }
 
-function SitePanel({ site, onClose }: { site: PanelSite; onClose: () => void }) {
-  return (
-    <div style={{ ...panelBase, width: 260 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--chalk)' }}>{site.name}</div>
-          <div style={{ fontSize: 10, color: 'var(--chalk3)', marginTop: 2 }}>{site.site_type}</div>
-        </div>
-        <CloseBtn onClose={onClose} />
-      </div>
-      <PanelRow label="Status"    val={site.status} />
-      <PanelRow label="Region"    val={site.region_id ? site.region_id.slice(0, 8) + '…' : '—'} />
-      <PanelRow label="Monitored" val={site.is_monitored ? 'Yes' : 'No'} />
-      <div style={{ marginTop: 12 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 5 }}>
-          <span style={{ color: 'var(--chalk3)' }}>Capacity</span>
-          <span style={{ color: utilHeatColor(site.utilPct), fontWeight: 700 }}>{site.utilPct}%</span>
-        </div>
-        <div style={{ background: 'var(--bg4)', borderRadius: 4, height: 6, overflow: 'hidden' }}>
-          <div style={{ width: `${site.utilPct}%`, height: '100%', borderRadius: 4, background: utilHeatColor(site.utilPct), transition: 'width .5s' }} />
-        </div>
-        <div style={{ fontSize: 10, color: 'var(--chalk3)', marginTop: 4 }}>Used {site.utilUsed} / {site.utilTotal} ONUs</div>
-      </div>
-      {site.has_alert && (
-        <div style={{ marginTop: 10, padding: '6px 10px', background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.2)', borderRadius: 7, fontSize: 10, color: '#f87171' }}>
-          ⚠ Active capacity alert
-        </div>
-      )}
-    </div>
-  );
-}
+// ── Asset markers (memoised: the heavy layer) ─────────────────
 
-function RoutePanel({ route, onClose }: { route: PanelRoute; onClose: () => void }) {
-  return (
-    <div style={{ ...panelBase, width: 240 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--chalk)' }}>Fiber Route</div>
-        <CloseBtn onClose={onClose} />
-      </div>
-      <PanelRow label="From"     val={route.fromName ?? route.from_node_id.slice(0, 8) + '…'} />
-      <PanelRow label="To"       val={route.toName   ?? route.to_node_id.slice(0, 8)   + '…'} />
-      <PanelRow label="Cable"    val={route.cable_type    ?? '—'} />
-      <PanelRow label="Length"   val={route.length_km     ? `${route.length_km.toFixed(2)} km` : '—'} />
-      <PanelRow label="Capacity" val={route.capacity_gbps ? `${route.capacity_gbps} Gbps`      : '—'} />
-      <PanelRow label="Status"   val={route.status} />
-    </div>
-  );
-}
+const AssetMarkers = memo(function AssetMarkers({ assets, palette, icons, selectedKey, onSelect }: {
+  assets: MapAsset[]; palette: MapPalette; icons: IconCache; selectedKey: string | null; onSelect: (a: MapAsset) => void;
+}) {
+  const clusterRing = useCallback((cluster: L.MarkerCluster) => {
+    let worst: AssetState = 'offline';
+    for (const m of cluster.getAllChildMarkers()) {
+      const cls = (m.options.icon?.options as L.DivIconOptions | undefined)?.className ?? '';
+      const st = (['critical', 'watch', 'normal', 'offline'] as AssetState[]).find(x => cls.includes(`state-${x}`)) ?? 'normal';
+      if (STATE_RANK[st] > STATE_RANK[worst]) worst = st;
+      if (worst === 'critical') break;
+    }
+    return clusterIcon(cluster.getChildCount(), worst === 'normal' || worst === 'offline' ? palette.route.normal : palette.state[worst]);
+  }, [palette]);
 
-function OLTPanel({ olt, onClose }: { olt: InfraMapOLT; onClose: () => void }) {
   return (
-    <div style={{ ...panelBase, width: 240 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--chalk)' }}>{olt.name}</div>
-          <div style={{ fontSize: 10, color: '#22d3ee', marginTop: 2 }}>OLT</div>
-        </div>
-        <CloseBtn onClose={onClose} />
-      </div>
-      <PanelRow label="Location" val={olt.location_description ?? '—'} />
-      <PanelRow label="ODF ports" val={olt.number_of_odf ?? '—'} />
-      <PanelRow label="Lat"      val={olt.latitude.toFixed(6)} />
-      <PanelRow label="Lng"      val={olt.longitude.toFixed(6)} />
-    </div>
-  );
-}
-
-function CabinetPanel({ cabinet, onClose }: { cabinet: InfraMapCabinet; onClose: () => void }) {
-  return (
-    <div style={{ ...panelBase, width: 240 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--chalk)' }}>{cabinet.cabinet_id}</div>
-          <div style={{ fontSize: 10, color: '#f59e0b', marginTop: 2 }}>Cabinet</div>
-        </div>
-        <CloseBtn onClose={onClose} />
-      </div>
-      <PanelRow label="Capacity"   val={cabinet.capacity} />
-      <PanelRow label="Trays"      val={cabinet.number_tray ?? '—'} />
-      <PanelRow label="Lat"        val={cabinet.latitude.toFixed(6)} />
-      <PanelRow label="Lng"        val={cabinet.longitude.toFixed(6)} />
-    </div>
-  );
-}
-
-function SplitterPanel({ splitter, onClose }: { splitter: InfraMapSplitter; onClose: () => void }) {
-  const color = splitterColor(splitter.splitter_level);
-  return (
-    <div style={{ ...panelBase, width: 240 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--chalk)' }}>{splitter.box_id}</div>
-          <div style={{ fontSize: 10, color, marginTop: 2 }}>{splitter.splitter_level} · {splitter.splitter_type}</div>
-        </div>
-        <CloseBtn onClose={onClose} />
-      </div>
-      <PanelRow label="Input ports"  val={splitter.input_ports} />
-      <PanelRow label="Output ports" val={splitter.output_ports} />
-      <PanelRow label="Customers"    val={splitter.number_customer ?? 0} />
-      <PanelRow label="Lat"          val={splitter.latitude.toFixed(6)} />
-      <PanelRow label="Lng"          val={splitter.longitude.toFixed(6)} />
-    </div>
-  );
-}
-
-// ── Legend ────────────────────────────────────────────────────
-
-function MapLegend() {
-  return (
-    <div style={{
-      position: 'absolute', bottom: 28, left: 12, zIndex: 1000,
-      background: 'var(--bg2)', border: '1px solid var(--wire2)', borderRadius: 8,
-      padding: '8px 12px', fontSize: 10, color: 'var(--chalk3)',
-      maxHeight: 'calc(100% - 60px)', overflowY: 'auto',
-    }}>
-      <div style={{ fontWeight: 700, color: 'var(--chalk)', marginBottom: 6 }}>Site Capacity</div>
-      {[['#4ade80', '< 70%'], ['#fb923c', '70–90%'], ['#f87171', '≥ 90% / Alert']].map(([c, l]) => (
-        <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-          <span style={{ width: 10, height: 10, borderRadius: '50%', background: c, display: 'block', flexShrink: 0 }} />
-          <span>{l}</span>
-        </div>
+    <MarkerClusterGroup
+      chunkedLoading
+      showCoverageOnHover={false}
+      spiderfyOnMaxZoom
+      maxClusterRadius={48}
+      disableClusteringAtZoom={UNCLUSTER_ZOOM}
+      iconCreateFunction={clusterRing}
+    >
+      {assets.map(a => (
+        <Marker
+          key={a.key}
+          position={[a.lat, a.lng]}
+          icon={icons.asset(a.kind, a.state, (a.raw as InfraMapSplitter).splitter_level, a.key === selectedKey)}
+          keyboard
+          eventHandlers={{
+            click: () => onSelect(a),
+            add: e => {
+              // Leaflet gives keyboard markers role=button but no name
+              (e.target as L.Marker).getElement()?.setAttribute('aria-label', `${KIND_LABEL[a.kind]} ${a.label}`);
+            },
+          }}
+        >
+          <Tooltip direction="top" offset={[0, -10]}>
+            <span style={{ fontFamily: 'var(--font-mono)' }}>{a.label}</span> · {KIND_LABEL[a.kind]}
+          </Tooltip>
+        </Marker>
       ))}
-      <div style={{ height: 1, background: 'var(--wire)', margin: '6px 0' }} />
-      <div style={{ fontWeight: 700, color: 'var(--chalk)', marginBottom: 6 }}>Routes</div>
-      {[['#4ade80', 'Active'], ['#fb923c', 'Maintenance'], ['#f87171', 'Cut / Down']].map(([c, l]) => (
-        <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-          <span style={{ width: 20, height: 3, background: c, display: 'block', borderRadius: 1, flexShrink: 0 }} />
-          <span>{l}</span>
-        </div>
-      ))}
-      <div style={{ height: 1, background: 'var(--wire)', margin: '6px 0' }} />
-      <div style={{ fontWeight: 700, color: 'var(--chalk)', marginBottom: 6 }}>FTTH Assets</div>
-      {[
-        ['#22d3ee', 'OLT', '◆'],
-        ['#f59e0b', 'Cabinet', '●'],
-        ['#818cf8', 'Splitter L1', '●'],
-        ['#c084fc', 'Splitter L2', '●'],
-      ].map(([c, l, shape]) => (
-        <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-          <span style={{ color: c, fontSize: 12, lineHeight: 1, flexShrink: 0 }}>{shape}</span>
-          <span>{l}</span>
-        </div>
-      ))}
-      <div style={{ height: 1, background: 'var(--wire)', margin: '6px 0' }} />
-      <div style={{ fontWeight: 700, color: 'var(--chalk)', marginBottom: 6 }}>Subscribers</div>
-      {[['#38bdf8', 'FTTH'], ['#818cf8', 'FTTB'], ['#fb923c', 'FTTC'], ['#facc15', 'Wireless']].map(([c, l]) => (
-        <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-          <span style={{ width: 10, height: 10, borderRadius: '50%', background: c, display: 'block', flexShrink: 0 }} />
-          <span>{l}</span>
-        </div>
-      ))}
-    </div>
+    </MarkerClusterGroup>
   );
-}
+});
 
-// ══ MAIN COMPONENT ════════════════════════════════════════════
-
-type SelectedAsset =
-  | { type: 'site';     data: PanelSite }
-  | { type: 'route';    data: PanelRoute }
-  | { type: 'olt';      data: InfraMapOLT }
-  | { type: 'cabinet';  data: InfraMapCabinet }
-  | { type: 'splitter'; data: InfraMapSplitter };
+// ── Workspace ─────────────────────────────────────────────────
 
 export default function InfraMapView() {
-  const [selected, setSelected] = useState<SelectedAsset | null>(null);
+  const phone = !useMediaQuery(BREAKPOINTS.tablet);
+  const [workspaceEl, setWorkspaceEl] = useState<HTMLDivElement | null>(null);
+  const palette = useMapPalette(workspaceEl);
+  const icons = useMemo(() => (palette ? createIconCache(palette) : null), [palette]);
+  const [map, setMap] = useState<L.Map | null>(null);
+  const statusRef = useRef<HTMLDivElement>(null);
 
-  const { data: mapData, isLoading: mapLoading } = useQuery<InfraMapData>({
-    queryKey: ['infra', 'map'],
-    queryFn:  () => infrastructureApi.getMap(),
-    refetchInterval: 60_000,
-  });
+  const [layers, setLayers] = useState<LayerState>(readLayers);
+  // Until the viewer picks one, the basemap follows the app theme
+  const appTheme = useThemeStore(st => st.resolved);
+  const [chosenBasemap, setBasemap] = useState<Basemap | null>(readBasemap);
+  const basemap = chosenBasemap ?? (appTheme === 'dark' ? DARK_MAP : LIGHT_MAP);
+  const [view, setView] = useState<'map' | 'list'>('map');
+  const [layersOpen, setLayersOpen] = useState(() => !phone);
+  const [selection, setSelection] = useState<Selection | null>(null);
+  const [trace, setTrace] = useState<{ hops: TraceHop[]; stop: string } | null>(null);
 
-  const { data: utilData = [] } = useQuery<InfraUtilisationPoint[]>({
-    queryKey: ['infra', 'utilisation'],
-    queryFn:  () => infrastructureApi.getUtilisation(),
-    refetchInterval: 60_000,
-  });
-
-  const { data: subscribersData = [] } = useQuery<any[]>({
+  // ── Data ──
+  const mapQ = useQuery<InfraMapData>({ queryKey: ['infra', 'map'], queryFn: () => infrastructureApi.getMap(), refetchInterval: 60_000 });
+  const utilQ = useQuery<InfraUtilisationPoint[]>({ queryKey: ['infra', 'utilisation'], queryFn: () => infrastructureApi.getUtilisation(), refetchInterval: 60_000 });
+  const outagesQ = useQuery({ queryKey: ['outages', 'live'], queryFn: () => outageApi.getLive(), refetchInterval: 30_000 });
+  const subsQ = useQuery<Subscriber[]>({
     queryKey: ['infra', 'subscribers'],
-    queryFn:  () => infrastructureApi.listSubscribers() as any,
+    queryFn: () => infrastructureApi.listSubscribers(),
+    enabled: layers.subscribers,        // only fetched when someone asks for it
     refetchInterval: 120_000,
   });
+  const today = localDate();
+  const shiftsQ = useQuery({ queryKey: ['shifts', 'weekly', today], queryFn: () => shiftsApi.getWeekly(today), refetchInterval: 300_000 });
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const { data: shiftsWeekly } = useQuery({
-    queryKey: ['shifts', 'weekly', todayStr],
-    queryFn:  () => shiftsApi.getWeekly(todayStr),
-    refetchInterval: 300_000,
-  });
-
-  // ── Derived lookup maps ──────────────────────────────────────
-  const siteMap = useMemo(() => {
-    const m: Record<string, InfraMapSite> = {};
-    mapData?.sites.forEach(s => { m[s.id] = s; });
+  const util = useMemo(() => (Array.isArray(utilQ.data) ? utilQ.data : []), [utilQ.data]);
+  const openIncidents = useMemo<OutageIncident[]>(
+    () => (Array.isArray(outagesQ.data) ? outagesQ.data : []).filter(o => o.status !== 'resolved'),
+    [outagesQ.data],
+  );
+  const assets = useMemo(() => buildAssetIndex(mapQ.data, util, openIncidents), [mapQ.data, util, openIncidents]);
+  const utilBySite = useMemo(() => new Map(util.map(u => [u.site_id, u])), [util]);
+  const sitesById = useMemo(() => new Map<string, InfraMapSite>((mapQ.data?.sites ?? []).map(x => [x.id, x])), [mapQ.data]);
+  const nodesById = useMemo(() => new Map((mapQ.data?.nodes ?? []).map(n => [n.id, n])), [mapQ.data]);
+  const cabinetSplitters = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const sp of mapQ.data?.splitters ?? []) if (sp.cabinet_id) m.set(sp.cabinet_id, (m.get(sp.cabinet_id) ?? 0) + 1);
     return m;
-  }, [mapData]);
+  }, [mapQ.data]);
 
-  const nodeMap = useMemo(() => {
-    const m: Record<string, InfraMapNode> = {};
-    mapData?.nodes.forEach(n => { m[n.id] = n; });
-    return m;
-  }, [mapData]);
+  const routes = useMemo(() => (mapQ.data?.routes ?? []).flatMap(r => {
+    const from = nodePosition(nodesById.get(r.from_node_id), sitesById);
+    const to = nodePosition(nodesById.get(r.to_node_id), sitesById);
+    if (!from || !to || (from[0] === to[0] && from[1] === to[1])) return [];
+    return [{ route: r, positions: [from, to] as [number, number][], style: routeStyle(r) }];
+  }), [mapQ.data, nodesById, sitesById]);
 
-  const siteUtilMap = useMemo(() => {
-    const m: Record<string, { pct: number; used: number; total: number }> = {};
-    utilData.forEach(u => { m[u.site_id] = { pct: u.utilisation_pct, used: u.used, total: u.total }; });
-    return m;
-  }, [utilData]);
+  const alarms = useMemo(() => assets.flatMap(a => {
+    const sev = worstSeverity(a.incidents);
+    return sev ? [{ asset: a, severity: sev }] : [];
+  }), [assets]);
 
-  const nodeCoord = (nodeId: string): [number, number] | null => {
-    const node = nodeMap[nodeId];
-    if (!node?.site_id) return null;
-    const site = siteMap[node.site_id];
-    if (!site?.latitude || !site?.longitude) return null;
-    return [site.latitude, site.longitude];
+  const visibleAssets = useMemo(() => assets.filter(a => layers[LAYER_OF[a.kind]]), [assets, layers]);
+  const allPoints = useMemo<[number, number][]>(() => assets.map(a => [a.lat, a.lng]), [assets]);
+
+  const subscribers = useMemo(
+    () => (Array.isArray(subsQ.data) ? subsQ.data : []).filter(x => Number.isFinite(x.latitude) && Number.isFinite(x.longitude) && !(x.latitude === 0 && x.longitude === 0)),
+    [subsQ.data],
+  );
+
+  const onCall = useMemo<string[] | null>(() => {
+    if (shiftsQ.isLoading) return null;
+    const list: ShiftAssignment[] = shiftsQ.data?.assignments ?? [];
+    const names = list
+      .filter(a => a.date === today && a.status !== 'cancelled' && a.shift?.shift_type === 'oncall')
+      .map(a => a.user?.name ?? 'Unnamed staff member');
+    return [...new Set(names)].sort();
+  }, [shiftsQ.isLoading, shiftsQ.data, today]);
+
+  const counts = useMemo<LayerCounts>(() => {
+    const bySev = Object.fromEntries(SEVERITY_ORDER.map(sv => [sv, 0])) as Record<OutageSeverity, number>;
+    for (const al of alarms) for (const inc of al.asset.incidents) bySev[inc.severity] += 1;
+    const placed = alarms.reduce((n, al) => n + al.asset.incidents.length, 0);
+    const kinds = { site: 0, olt: 0, cabinet: 0, splitter: 0 };
+    let l2 = 0;
+    for (const a of assets) {
+      kinds[a.kind] += 1;
+      if (a.kind === 'splitter' && /second/i.test((a.raw as InfraMapSplitter).splitter_level)) l2 += 1;
+    }
+    return {
+      sites: kinds.site, olts: kinds.olt, cabinets: kinds.cabinet,
+      splitterL1: kinds.splitter - l2, splitterL2: l2,
+      routes: routes.length, subscribers: subscribers.length,
+      alarmsBySeverity: bySev, alarmsUnplaced: openIncidents.length - placed,
+    };
+  }, [alarms, assets, routes.length, subscribers.length, openIncidents.length]);
+
+  // Keep the selected asset's data fresh across refetches
+  // (memoised: the inspector keeps the last selection by identity while it animates closed)
+  const liveSelection = useMemo<Selection | null>(() => {
+    if (selection?.type !== 'asset') return selection;
+    const fresh = assets.find(a => a.key === selection.asset.key);
+    return fresh && fresh !== selection.asset ? { type: 'asset', asset: fresh } : selection;
+  }, [selection, assets]);
+  const selectedKey = liveSelection?.type === 'asset' ? liveSelection.asset.key : null;
+
+  // ── Actions ──
+  const toggleLayer = useCallback((k: LayerKey) => {
+    setLayers(prev => {
+      const next = { ...prev, [k]: !prev[k] };
+      store(LAYERS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const pickBasemap = (b: Basemap) => { setBasemap(b); store(BASEMAP_KEY, b.id); };
+
+  const selectAsset = useCallback((a: MapAsset) => {
+    setSelection({ type: 'asset', asset: a });
+    setTrace(null);
+  }, []);
+
+  const showAsset = useCallback((a: MapAsset) => {
+    selectAsset(a);
+    setView('map');
+    if (!layers[LAYER_OF[a.kind]]) toggleLayer(LAYER_OF[a.kind]);
+    map?.flyTo([a.lat, a.lng], Math.max(map.getZoom(), UNCLUSTER_ZOOM), { duration: 0.6 });
+  }, [map, layers, selectAsset, toggleLayer]);
+
+  const selectRoute = (route: InfraMapRoute) => {
+    const from = nodesById.get(route.from_node_id);
+    const to = nodesById.get(route.to_node_id);
+    setSelection({ type: 'route', route, fromName: from?.name, toName: to?.name });
+    setTrace(null);
   };
 
-  // All geo-referenced points — sites + all uploaded FTTH assets.
-  // Used by BoundsAdjuster so the map auto-fits even if there are no sites yet.
-  const allPoints = useMemo(() => {
-    const pts: [number, number][] = [];
-    (mapData?.sites ?? []).forEach(s => {
-      if (s.latitude && s.longitude) pts.push([s.latitude, s.longitude]);
-    });
-    (mapData?.olts      ?? []).forEach(o => pts.push([o.latitude, o.longitude]));
-    (mapData?.cabinets  ?? []).forEach(c => pts.push([c.latitude, c.longitude]));
-    (mapData?.splitters ?? []).forEach(s => pts.push([s.latitude, s.longitude]));
-    return pts;
-  }, [mapData]);
+  const runTrace = (splitterId: string) => {
+    if (!mapQ.data) return;
+    const t = traceSplitter(splitterId, mapQ.data, assets);
+    setTrace(t);
+    if (map && t.hops.length > 1) map.fitBounds(L.latLngBounds(t.hops.map(h => [h.asset.lat, h.asset.lng] as [number, number])), { padding: [64, 64], maxZoom: 17 });
+  };
 
-  const onCallMarkers = useMemo(() => {
-    if (!shiftsWeekly || !Array.isArray(shiftsWeekly)) return [];
-    return (shiftsWeekly as any[]).filter((row: any) => {
-      const todayAssign = row.assignments?.[todayStr];
-      return todayAssign?.shift?.shift_type === 'oncall';
-    });
-  }, [shiftsWeekly, todayStr]);
+  const zoomToSelection = () => {
+    if (!map || !liveSelection) return;
+    if (liveSelection.type === 'asset') map.flyTo([liveSelection.asset.lat, liveSelection.asset.lng], Math.max(map.getZoom(), UNCLUSTER_ZOOM + 1), { duration: 0.6 });
+    else {
+      const r = routes.find(x => x.route.id === liveSelection.route.id);
+      if (r) map.fitBounds(L.latLngBounds(r.positions), { padding: [64, 64] });
+    }
+  };
 
-  if (mapLoading) {
-    return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', height: 500, color: 'var(--chalk3)', fontSize: 12 }}>
-        Loading infrastructure map…
-      </div>
-    );
-  }
+  const fitAll = () => {
+    if (!map || allPoints.length === 0) return;
+    map.fitBounds(L.latLngBounds(allPoints), { padding: [48, 48], maxZoom: 14 });
+  };
 
-  const sites    = mapData?.sites    ?? [];
-  const nodes    = mapData?.nodes    ?? [];
-  const routes   = mapData?.routes   ?? [];
-  const olts     = mapData?.olts     ?? [];
-  const cabinets = mapData?.cabinets ?? [];
-  const splitters = mapData?.splitters ?? [];
+  const closeInspector = useCallback(() => { setSelection(null); setTrace(null); }, []);
 
-  // Close any panel when a different marker type is clicked
-  const sel = (asset: SelectedAsset) => setSelected(asset);
-  const clearSel = () => setSelected(null);
+  const onMapReady = useCallback((m: L.Map) => setMap(m), []);
+
+  const mapLabel = `Network map: ${visibleAssets.length} assets shown${alarms.length ? `, ${alarms.length} with open incidents` : ''}. The list view shows the same assets as a table.`;
+  const inspectorOpen = selection !== null;
+  const empty = !mapQ.isLoading && !mapQ.isError && assets.length === 0;
 
   return (
-    <div style={{ position: 'relative', height: 'calc(100vh - 220px)', minHeight: 480, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--wire)' }}>
-      <MapContainer
-        center={allPoints.length ? allPoints[0] : [9.0820, 8.6753]}
-        zoom={7}
-        style={{ height: '100%', width: '100%', background: '#0d1117' }}
-        zoomControl
-      >
-        <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          attribution='&copy; <a href="https://carto.com">CARTO</a>'
-          maxZoom={19}
-        />
+    <div ref={setWorkspaceEl} className={s.workspace} data-surface="console">
+      {palette && icons && (
+        // Zoom limits live on the map, not the tiles: with no basemap, clustering still needs a maxZoom
+        <MapContainer className={s.map} center={[6.5244, 3.3792]} zoom={11} minZoom={3} maxZoom={19} zoomControl={false} worldCopyJump>
+          <MapBridge onReady={onMapReady} label={mapLabel} />
+          <FitOnce points={allPoints} />
+          <StatusReporter target={statusRef} />
+          <ScaleControl position="bottomright" imperial={false} />
+          {basemap.url && <ResilientTileLayer key={basemap.id} basemap={basemap} />}
 
-        {allPoints.length > 1 && <BoundsAdjuster points={allPoints} />}
+          {layers.heat && util.filter(u => Number.isFinite(u.latitude) && Number.isFinite(u.longitude)).map(u => {
+            const st = capacityState(u.utilisation_pct, false);
+            const color = st === 'normal' ? palette.route.normal : palette.state[st];
+            return (
+              <Circle
+                key={`heat:${u.site_id}`}
+                center={[u.latitude!, u.longitude!]}
+                radius={Math.max(400, Math.min(2000, u.total * 8))}
+                pathOptions={{ fillColor: color, fillOpacity: 0.18, color, weight: 1, opacity: 0.35 }}
+                interactive={false}
+              />
+            );
+          })}
 
-        <LayersControl position="topright">
+          {layers.routes && routes.map(({ route, positions, style }) => {
+            const sel = liveSelection?.type === 'route' && liveSelection.route.id === route.id;
+            return (
+              <Polyline
+                key={`route:${route.id}`}
+                positions={positions}
+                pathOptions={{
+                  color: sel ? palette.select : palette.route[style.state],
+                  weight: style.weight + (sel ? 2 : 0),
+                  dashArray: style.dashArray,
+                  opacity: 0.9,
+                  lineCap: 'round',
+                }}
+                eventHandlers={{ click: () => selectRoute(route) }}
+              >
+                <Tooltip sticky>{route.cable_type ?? 'Fiber route'} · {route.status}</Tooltip>
+              </Polyline>
+            );
+          })}
 
-          {/* ── Layer 1: Site Markers ── */}
-          <LayersControl.Overlay name="Site Markers" checked>
-            <LayerGroup>
-              {sites.filter(s => s.latitude && s.longitude).map(site => {
-                const util  = siteUtilMap[site.id] ?? { pct: 0, used: 0, total: 0 };
-                const color = siteMarkerColor(site, util.pct);
-                return (
-                  <CircleMarker
-                    key={site.id}
-                    center={[site.latitude!, site.longitude!]}
-                    radius={site.site_type === 'POP' || site.site_type === 'data_centre' ? 10 : 7}
-                    pathOptions={{
-                      fillColor: color, fillOpacity: 0.85,
-                      color: site.has_alert ? '#fef08a' : color,
-                      weight: site.has_alert ? 2 : 1,
-                    }}
-                    eventHandlers={{ click: () => sel({ type: 'site', data: { ...site, utilPct: util.pct, utilUsed: util.used, utilTotal: util.total } }) }}
-                  >
-                    <Popup>
-                      <div style={{ fontFamily: 'monospace', fontSize: 12, minWidth: 140 }}>
-                        <strong>{site.name}</strong><br />
-                        {site.site_type} · {site.status}<br />
-                        Capacity: <span style={{ color }}>{util.pct}%</span>
-                      </div>
-                    </Popup>
-                  </CircleMarker>
-                );
-              })}
-            </LayerGroup>
-          </LayersControl.Overlay>
+          {layers.subscribers && subscribers.map(x => (
+            <CircleMarker
+              key={`sub:${x.id}`}
+              center={[x.latitude!, x.longitude!]}
+              radius={3}
+              interactive={false}
+              pathOptions={{ color: palette.route.unknown, fillColor: palette.route.unknown, fillOpacity: 0.6, weight: 0 }}
+            />
+          ))}
 
-          {/* ── Layer 2: Fiber Routes ── */}
-          <LayersControl.Overlay name="Fiber Routes" checked>
-            <LayerGroup>
-              {routes.map(route => {
-                const fromCoord = nodeCoord(route.from_node_id);
-                const toCoord   = nodeCoord(route.to_node_id);
-                if (!fromCoord || !toCoord) return null;
-                const color  = routeColor(route.status);
-                const weight = routeWeight(route.cable_type);
-                const panelRoute: PanelRoute = {
-                  ...route,
-                  fromName: nodeMap[route.from_node_id]?.name,
-                  toName:   nodeMap[route.to_node_id]?.name,
-                };
-                return (
-                  <Polyline
-                    key={route.id}
-                    positions={[fromCoord, toCoord]}
-                    pathOptions={{ color, weight, opacity: 0.75 }}
-                    eventHandlers={{ click: () => sel({ type: 'route', data: panelRoute }) }}
-                  >
-                    <Popup>
-                      <div style={{ fontFamily: 'monospace', fontSize: 12, minWidth: 140 }}>
-                        <strong>{panelRoute.fromName ?? '?'} → {panelRoute.toName ?? '?'}</strong><br />
-                        {route.cable_type ?? 'Fiber'} · {route.status}<br />
-                        {route.length_km    ? `${route.length_km.toFixed(1)} km`  : ''}
-                        {route.capacity_gbps ? ` · ${route.capacity_gbps} Gbps` : ''}
-                      </div>
-                    </Popup>
-                  </Polyline>
-                );
-              })}
-            </LayerGroup>
-          </LayersControl.Overlay>
+          <AssetMarkers assets={visibleAssets} palette={palette} icons={icons} selectedKey={selectedKey} onSelect={selectAsset} />
 
-          {/* ── Layer 3: Utilisation Heatmap ── */}
-          <LayersControl.Overlay name="Utilisation Heatmap" checked>
-            <LayerGroup>
-              {utilData.filter(u => u.latitude && u.longitude).map(u => {
-                const color  = utilHeatColor(u.utilisation_pct);
-                const radius = Math.max(400, Math.min(2000, u.total * 8));
-                return (
-                  <Circle
-                    key={u.site_id}
-                    center={[u.latitude!, u.longitude!]}
-                    radius={radius}
-                    pathOptions={{ fillColor: color, fillOpacity: 0.22, color, weight: 0 }}
-                  >
-                    <Popup>
-                      <div style={{ fontFamily: 'monospace', fontSize: 12 }}>
-                        <strong>{u.name}</strong><br />
-                        Used {u.used} / {u.total} ({u.utilisation_pct}%)
-                      </div>
-                    </Popup>
-                  </Circle>
-                );
-              })}
-            </LayerGroup>
-          </LayersControl.Overlay>
+          {trace && trace.hops.length > 1 && (
+            <Polyline
+              positions={trace.hops.map(h => [h.asset.lat, h.asset.lng] as [number, number])}
+              pathOptions={{ color: palette.select, weight: 3, dashArray: '1 8', lineCap: 'round', opacity: 1 }}
+              interactive={false}
+            />
+          )}
 
-          {/* ── Layer 4: OLTs (uploaded) ── */}
-          <LayersControl.Overlay name="OLTs" checked>
-            <LayerGroup>
-              {olts.length === 0 && (
-                <CircleMarker center={[0, 0]} radius={0} pathOptions={{ opacity: 0 }} />
-              )}
-              {olts.map(olt => (
-                <CircleMarker
-                  key={olt.id}
-                  center={[olt.latitude, olt.longitude]}
-                  radius={9}
-                  pathOptions={{ fillColor: '#22d3ee', fillOpacity: 0.9, color: '#0e7490', weight: 2 }}
-                  eventHandlers={{ click: () => sel({ type: 'olt', data: olt }) }}
-                >
-                  <Popup>
-                    <div style={{ fontFamily: 'monospace', fontSize: 12, minWidth: 150 }}>
-                      <strong>{olt.name}</strong><br />
-                      OLT · {olt.location_description ?? ''}<br />
-                      {olt.number_of_odf != null ? `${olt.number_of_odf} ODF ports` : ''}
-                    </div>
-                  </Popup>
-                </CircleMarker>
-              ))}
-            </LayerGroup>
-          </LayersControl.Overlay>
-
-          {/* ── Layer 5: Cabinets (uploaded) ── */}
-          <LayersControl.Overlay name="Cabinets" checked>
-            <LayerGroup>
-              {cabinets.length === 0 && (
-                <CircleMarker center={[0, 0]} radius={0} pathOptions={{ opacity: 0 }} />
-              )}
-              {cabinets.map(cab => (
-                <CircleMarker
-                  key={cab.id}
-                  center={[cab.latitude, cab.longitude]}
-                  radius={7}
-                  pathOptions={{ fillColor: '#f59e0b', fillOpacity: 0.88, color: '#b45309', weight: 1.5 }}
-                  eventHandlers={{ click: () => sel({ type: 'cabinet', data: cab }) }}
-                >
-                  <Popup>
-                    <div style={{ fontFamily: 'monospace', fontSize: 12, minWidth: 140 }}>
-                      <strong>{cab.cabinet_id}</strong><br />
-                      Cabinet · {cab.capacity} cap<br />
-                      {cab.number_tray != null ? `${cab.number_tray} trays` : ''}
-                    </div>
-                  </Popup>
-                </CircleMarker>
-              ))}
-            </LayerGroup>
-          </LayersControl.Overlay>
-
-          {/* ── Layer 6: Splitter Boxes (uploaded) ── */}
-          <LayersControl.Overlay name="Splitter Boxes" checked>
-            <LayerGroup>
-              {splitters.length === 0 && (
-                <CircleMarker center={[0, 0]} radius={0} pathOptions={{ opacity: 0 }} />
-              )}
-              {splitters.map(spl => {
-                const color = splitterColor(spl.splitter_level);
-                return (
-                  <CircleMarker
-                    key={spl.id}
-                    center={[spl.latitude, spl.longitude]}
-                    radius={5}
-                    pathOptions={{ fillColor: color, fillOpacity: 0.85, color, weight: 1 }}
-                    eventHandlers={{ click: () => sel({ type: 'splitter', data: spl }) }}
-                  >
-                    <Popup>
-                      <div style={{ fontFamily: 'monospace', fontSize: 12, minWidth: 140 }}>
-                        <strong>{spl.box_id}</strong><br />
-                        {spl.splitter_level} · {spl.splitter_type}<br />
-                        {spl.input_ports}:{spl.output_ports} split
-                        {spl.number_customer != null ? ` · ${spl.number_customer} customers` : ''}
-                      </div>
-                    </Popup>
-                  </CircleMarker>
-                );
-              })}
-            </LayerGroup>
-          </LayersControl.Overlay>
-
-          {/* ── Layer 7: On-Call Staff ── */}
-          <LayersControl.Overlay name="On-Call Staff (today)">
-            <LayerGroup>
-              {onCallMarkers.length === 0 && (
-                <CircleMarker center={[0, 0]} radius={0} pathOptions={{ opacity: 0 }} />
-              )}
-              {onCallMarkers.map((row: any, i: number) => {
-                const assign = row.assignments?.[todayStr];
-                if (!assign) return null;
-                return (
-                  <CircleMarker
-                    key={i}
-                    center={[6.5244, 3.3792 + i * 0.05]}
-                    radius={8}
-                    pathOptions={{ fillColor: '#a78bfa', fillOpacity: 0.8, color: '#a78bfa', weight: 1 }}
-                  >
-                    <Popup>
-                      <div style={{ fontFamily: 'monospace', fontSize: 12 }}>
-                        <strong>{row.name ?? 'Staff'}</strong><br />
-                        On-call · {assign.shift?.name ?? 'Oncall Shift'}
-                      </div>
-                    </Popup>
-                  </CircleMarker>
-                );
-              })}
-            </LayerGroup>
-          </LayersControl.Overlay>
-
-          {/* ── Layer 8: Coverage Demand ── */}
-          <LayersControl.Overlay name="Coverage Demand">
-            <LayerGroup>
-              {subscribersData.filter((s: any) => s.latitude && s.longitude).length === 0 && (
-                <CircleMarker center={[0, 0]} radius={0} pathOptions={{ opacity: 0 }} />
-              )}
-              {subscribersData
-                .filter((s: any) => s.latitude && s.longitude)
-                .map((sub: any) => {
-                  const color = subscriberColor(sub.service_type);
-                  return (
-                    <CircleMarker
-                      key={sub.id}
-                      center={[sub.latitude, sub.longitude]}
-                      radius={4}
-                      pathOptions={{ fillColor: color, fillOpacity: 0.75, color, weight: 1 }}
-                    >
-                      <Popup>
-                        <div style={{ fontFamily: 'monospace', fontSize: 12, minWidth: 130 }}>
-                          <strong>{sub.customer_id}</strong><br />
-                          {sub.service_type} · {sub.status}<br />
-                          {sub.address ?? ''}
-                        </div>
-                      </Popup>
-                    </CircleMarker>
+          {layers.alarms && alarms.map(({ asset, severity }) => (
+            <Marker
+              key={`alarm:${asset.key}`}
+              position={[asset.lat, asset.lng]}
+              icon={icons.alarm(severity, asset.key === selectedKey)}
+              zIndexOffset={1000}
+              keyboard
+              eventHandlers={{
+                click: () => selectAsset(asset),
+                add: e => {
+                  (e.target as L.Marker).getElement()?.setAttribute(
+                    'aria-label',
+                    `${SEVERITY_META[severity].label} incident at ${KIND_LABEL[asset.kind]} ${asset.label}: ${asset.incidents.length} open`,
                   );
-                })
-              }
-            </LayerGroup>
-          </LayersControl.Overlay>
+                },
+              }}
+            >
+              <Tooltip direction="top" offset={[0, -12]}>
+                {asset.incidents.length} open · <span style={{ fontFamily: 'var(--font-mono)' }}>{asset.label}</span>
+              </Tooltip>
+            </Marker>
+          ))}
+        </MapContainer>
+      )}
 
-        </LayersControl>
-      </MapContainer>
+      {view === 'list' && palette && <AssetList assets={assets} layers={layers} palette={palette} onShow={showAsset} />}
 
-      {/* ── Detail panels ── */}
-      {selected?.type === 'site'     && <SitePanel     site={selected.data}     onClose={clearSel} />}
-      {selected?.type === 'route'    && <RoutePanel    route={selected.data}    onClose={clearSel} />}
-      {selected?.type === 'olt'      && <OLTPanel      olt={selected.data}      onClose={clearSel} />}
-      {selected?.type === 'cabinet'  && <CabinetPanel  cabinet={selected.data}  onClose={clearSel} />}
-      {selected?.type === 'splitter' && <SplitterPanel splitter={selected.data} onClose={clearSel} />}
+      {/* ── Floating controls ── */}
+      {palette && (
+        <div className={`${s.overlay} ${s.topLeft}`}>
+          <MapSearch assets={assets} palette={palette} onPick={showAsset} />
+          {view === 'map' && layersOpen && (
+            <LayerPanel layers={layers} onToggle={toggleLayer} counts={counts} palette={palette} onCall={onCall} onClose={() => setLayersOpen(false)} />
+          )}
+        </div>
+      )}
 
-      {/* ── Legend ── */}
-      <MapLegend />
-
-      {/* ── Stats strip ── */}
-      <div style={{
-        position: 'absolute', top: 12, left: 12, zIndex: 1000,
-        display: 'flex', gap: 6, flexWrap: 'wrap',
-      }}>
-        {[
-          { label: 'Sites',       val: sites.length,       color: 'var(--cyan)'  },
-          { label: 'Nodes',       val: nodes.length,       color: 'var(--green)' },
-          { label: 'Routes',      val: routes.length,      color: 'var(--amber)' },
-          { label: 'OLTs',        val: olts.length,        color: '#22d3ee'      },
-          { label: 'Cabinets',    val: cabinets.length,    color: '#f59e0b'      },
-          { label: 'Splitters',   val: splitters.length,   color: '#818cf8'      },
-          { label: 'Alerts',      val: sites.filter(s => s.has_alert).length, color: 'var(--rose)' },
-          { label: 'Subscribers', val: subscribersData.length, color: '#38bdf8'  },
-        ].map(s => (
-          <div key={s.label} style={{
-            background: 'rgba(5,8,16,.85)', border: '1px solid var(--wire2)', borderRadius: 7,
-            padding: '4px 10px', fontSize: 10, color: 'var(--chalk3)',
-            display: 'flex', alignItems: 'center', gap: 6,
-          }}>
-            <span style={{ fontWeight: 700, color: s.color, fontFamily: 'var(--mono)' }}>{s.val}</span>
-            <span>{s.label}</span>
-          </div>
-        ))}
+      <div className={`${s.overlay} ${s.topRight} ${inspectorOpen && view === 'map' ? s.withInspector : ''}`}>
+        <GlassToolbar label="Map view">
+          <button type="button" className={s.seg} aria-pressed={view === 'map'} onClick={() => setView('map')}>
+            <MapIcon size={14} aria-hidden="true" style={{ verticalAlign: -2, marginRight: 6 }} />Map
+          </button>
+          <button type="button" className={s.seg} aria-pressed={view === 'list'} onClick={() => setView('list')}>
+            <List size={14} aria-hidden="true" style={{ verticalAlign: -2, marginRight: 6 }} />List
+          </button>
+          {view === 'map' && (
+            <>
+              <GlassToolbarDivider />
+              <GlassButton shape="icon" aria-label={layersOpen ? 'Hide layers' : 'Show layers'} aria-pressed={layersOpen} icon={<Layers size={16} />} onClick={() => setLayersOpen(o => !o)} />
+              <div role="group" aria-label="Basemap style" className={s.segGroup}>
+                <button type="button" className={s.seg} aria-pressed={basemap.id === 'osm-dark'} onClick={() => pickBasemap(DARK_MAP)}>
+                  <Moon size={14} aria-hidden="true" style={{ verticalAlign: -2, marginRight: 6 }} />Dark
+                </button>
+                <button type="button" className={s.seg} aria-pressed={basemap.id === 'osm'} onClick={() => pickBasemap(LIGHT_MAP)}>
+                  <Sun size={14} aria-hidden="true" style={{ verticalAlign: -2, marginRight: 6 }} />Light
+                </button>
+              </div>
+              <GlassMenu
+                label="More basemaps"
+                placement="bottom-end"
+                surface="console"
+                header={<div style={{ padding: '6px 10px', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>Basemap</div>}
+                items={BASEMAPS.map(b => ({
+                  id: b.id,
+                  label: b.label,
+                  hint: b.id === basemap.id ? 'Current' : undefined,
+                  onSelect: () => pickBasemap(b),
+                }))}
+                renderTrigger={p => (
+                  <GlassButton {...p} shape="icon" aria-label={`More basemaps (current: ${basemap.label})`} icon={<MoreHorizontal size={16} />} />
+                )}
+              />
+            </>
+          )}
+        </GlassToolbar>
       </div>
+
+      {view === 'map' && (
+        <div className={`${s.overlay} ${s.bottomRight} ${inspectorOpen ? s.withInspector : ''}`}>
+          <GlassToolbar label="Zoom" orientation="vertical">
+            <GlassButton shape="icon" aria-label="Zoom in" icon={<Plus size={16} />} onClick={() => map?.zoomIn()} />
+            <GlassButton shape="icon" aria-label="Zoom out" icon={<Minus size={16} />} onClick={() => map?.zoomOut()} />
+            <GlassToolbarDivider />
+            <GlassButton shape="icon" aria-label="Show the whole network" icon={<Maximize2 size={16} />} onClick={fitAll} disabled={allPoints.length === 0} />
+          </GlassToolbar>
+        </div>
+      )}
+
+      {view === 'map' && (
+        <div ref={statusRef} className={`liquid-glass-chip ${s.overlay} ${s.status}`} aria-hidden="true">
+          <span>—</span><span>z11</span><span>{basemap.id === 'none' ? 'No basemap' : basemap.label}</span>
+        </div>
+      )}
+
+      {/* ── States ── */}
+      {mapQ.isLoading && (
+        <GlassPanel readable className={`${s.overlay} ${s.notice}`} role="status">
+          <p>Loading the network map…</p>
+        </GlassPanel>
+      )}
+      {mapQ.isError && (
+        <GlassPanel readable className={`${s.overlay} ${s.notice}`} role="alert">
+          <h2>The network map couldn't load</h2>
+          <p>Asset positions are unavailable right now. <button type="button" className={s.action} style={{ marginTop: 12 }} onClick={() => mapQ.refetch()}>Try again</button></p>
+        </GlassPanel>
+      )}
+      {empty && view === 'map' && (
+        <GlassPanel readable className={`${s.overlay} ${s.notice}`} role="status">
+          <h2>No assets have coordinates yet</h2>
+          <p>Upload OLTs, cabinets and splitters with latitude and longitude to place them here. <Link to="/infrastructure/upload">Go to bulk upload</Link></p>
+        </GlassPanel>
+      )}
+
+      {palette && view === 'map' && (
+        <MapInspector
+          selection={liveSelection}
+          palette={palette}
+          util={utilBySite}
+          cabinetSplitters={cabinetSplitters}
+          trace={trace}
+          onTrace={runTrace}
+          onZoom={zoomToSelection}
+          onClose={closeInspector}
+        />
+      )}
+
+      <p className={s.srOnly} aria-live="polite">
+        {mapQ.isSuccess ? `${visibleAssets.length} assets shown, ${counts.routes} routes, ${alarms.length} assets with open incidents.` : ''}
+      </p>
+
     </div>
   );
 }

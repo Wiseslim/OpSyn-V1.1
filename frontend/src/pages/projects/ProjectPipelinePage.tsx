@@ -18,6 +18,7 @@ import { PushBackModal }     from '../../components/projects/PushBackModal';
 import { useAuthStore }      from '../../store/auth.store';
 import { formBuilderApi, type ContextSchema } from '../../api/form-builder.api';
 import FormRenderer from '../../components/form-builder/FormRenderer';
+import { GlassModal } from '../../components/glass';
 
 // ── Stage status colour palette ───────────────────────────────
 
@@ -54,7 +55,7 @@ function StageForms({
 
   return (
     <div style={{
-      marginBottom: 24, background: 'white',
+      marginBottom: 24, background: 'var(--surface)',
       border: '1px solid var(--color-border)', borderRadius: 12, padding: 20,
     }}>
       <div style={{
@@ -405,7 +406,7 @@ export function ProjectPipelinePage() {
         {/* Current Stage Detail */}
         {currentStage && !isCompleted && (
           <div style={{
-            background: 'white', borderRadius: 12, marginBottom: 24,
+            background: 'var(--surface)', borderRadius: 12, marginBottom: 24,
             border: '1px solid var(--color-border)',
             borderLeft: '3px solid #0ea5e9',
             padding: 20,
@@ -496,7 +497,7 @@ export function ProjectPipelinePage() {
 
                 return (
                   <div key={stage.id} id={`stage-${stage.id}`} style={{
-                    background: 'white',
+                    background: 'var(--surface)',
                     border: '1px solid var(--color-border)',
                     borderLeft: `3px solid ${color}`,
                     borderRadius: 10, padding: '14px 16px', marginBottom: 10,
@@ -591,16 +592,7 @@ export function ProjectPipelinePage() {
 
         {/* Approve Gate Modal */}
         {showApproveModal && currentStage && (
-          <div style={{
-            position: 'fixed', inset: 0, zIndex: 1000,
-            background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-            onClick={e => { if (e.target === e.currentTarget) setShowApproveModal(false); }}
-          >
-            <div style={{
-              background: 'var(--color-surface)', borderRadius: 14, padding: 24,
-              width: 380, boxShadow: '0 24px 64px rgba(0,0,0,.25)', border: '1px solid var(--color-border)',
-            }}>
+          <GlassModal open onClose={() => setShowApproveModal(false)} ariaLabel="Approve stage" size="sm">
               <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 4 }}>
                 Approve Stage Gate
               </div>
@@ -642,8 +634,7 @@ export function ProjectPipelinePage() {
                   {approveMutation.isPending ? 'Approving…' : 'Confirm Approval'}
                 </button>
               </div>
-            </div>
-          </div>
+            </GlassModal>
         )}
       </div>
     </div>

@@ -202,3 +202,66 @@ class FormSubmission(Base):
     schema         = relationship('FormSchema',        back_populates='submissions')
     schema_version = relationship('FormSchemaVersion', back_populates='submissions')
     association    = relationship('FormAssociation',   back_populates='submissions')
+
+
+class SchemaMigrationHistory(Base):
+    """
+    One executed change to a tenant's dynamic entity table
+    (tenant_{tenant_id}_{machine_name}_data). The audit trail behind
+    SchemaMigrationService: what was applied, by whom, and whether the
+    inverse SQL can be replayed.
+
+    No migration files are generated at runtime -- forward_sql is executed
+    transactionally on the request's own session, and this table is the
+    source of truth. See alembic/versions/0095_schema_migration_history.py.
+    """
+    __tablename__      = 'schema_migration_history'
+    __allow_unmapped__ = True
+    __table_args__     = (
+        CheckConstraint("change_type IN ('create_table', 'add_column', 'alter_column',"
+                        " 'drop_column', 'add_index', 'add_constraint')",
+                        name='ck_schema_migration_history_change_type'),
+        CheckConstraint("status IN ('pending', 'in_progress', 'applied',"
+                        " 'failed', 'rolled_back')",
+                        name='ck_schema_migration_history_status'),
+    )
+
+    id                     = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id              = Column(UUID(as_uuid=True), ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False)
+    schema_id              = Column(UUID(as_uuid=True), ForeignKey('form_schemas.id', ondelete='CASCADE'), nullable=False)
+
+    # Migration identification
+    migration_name         = Column(String(100), nullable=False)
+    plan_hash              = Column(String(64),  nullable=False)   # sha256 of forward_sql
+    alembic_revision       = Column(String(32),  nullable=True)    # informational only
+
+    # Change tracking
+    change_type            = Column(String(50),  nullable=False)
+    field_changes          = Column(JSONB,       nullable=False, default=list)
+    table_name             = Column(String(200), nullable=True)
+
+    # SQL executed
+    forward_sql            = Column(Text(),      nullable=False)
+    rollback_sql           = Column(Text(),      nullable=True)
+
+    # Execution tracking
+    status                 = Column(String(20),  nullable=False, default='pending')
+    is_destructive         = Column(Boolean(),   nullable=False, default=False)
+    error_message          = Column(Text(),      nullable=True)
+    execution_duration_ms  = Column(Integer(),   nullable=True)
+
+    # Audit
+    applied_by             = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    applied_at             = Column(DateTime(timezone=True), nullable=True)
+    rolled_back_at         = Column(DateTime(timezone=True), nullable=True)
+    rolled_back_by         = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+
+    # Metadata
+    created_at             = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    created_by             = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+
+    # Relationships
+    schema                 = relationship('FormSchema', foreign_keys=[schema_id])
+    applied_by_user        = relationship('User', foreign_keys=[applied_by])
+    created_by_user        = relationship('User', foreign_keys=[created_by])
+    rolled_back_by_user    = relationship('User', foreign_keys=[rolled_back_by])

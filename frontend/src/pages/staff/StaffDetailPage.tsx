@@ -106,9 +106,9 @@ export default function StaffDetailPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{
               width: 52, height: 52, borderRadius: 14,
-              background: 'var(--color-teal)',
+              background: 'var(--brand)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 800, color: 'white',
+              fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 800, color: 'var(--brand-contrast)',
               flexShrink: 0,
             }}>
               {initials}
@@ -128,7 +128,7 @@ export default function StaffDetailPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
 
           {/* Left: Profile info */}
-          <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', padding: '16px 18px' }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', padding: '16px 18px' }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 4 }}>
               Profile
             </div>
@@ -164,7 +164,7 @@ export default function StaffDetailPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Account info */}
-            <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', padding: '16px 18px' }}>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', padding: '16px 18px' }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 4 }}>
                 Account
               </div>
@@ -175,7 +175,7 @@ export default function StaffDetailPage() {
 
             {/* Efficiency score */}
             {p && (
-              <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', padding: '16px 18px' }}>
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', padding: '16px 18px' }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 12 }}>
                   Efficiency Score
                 </div>
@@ -189,7 +189,7 @@ export default function StaffDetailPage() {
                   }}>
                     <div style={{
                       width: 54, height: 54, borderRadius: '50%',
-                      background: 'white',
+                      background: 'var(--surface)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       fontFamily: 'var(--font-mono)', fontSize: 17, fontWeight: 800,
                       color: scoreColor,

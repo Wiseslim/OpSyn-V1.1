@@ -10,6 +10,8 @@ import type { CreateStaffRequest, StaffStatus } from '@shared';
 import { useUIStore } from '../../store/ui.store';
 import { Button, Input, Select } from '../../components/ui';
 import type { ApiError } from '../../api/client';
+import { ArrowLeft } from 'lucide-react';
+import { PageHeader } from '../../components/layout/Page';
 
 const toArr = (d: any): any[] => Array.isArray(d) ? d : (d?.items ?? []);
 
@@ -119,20 +121,17 @@ export default function StaffCreatePage() {
       <div style={{ padding: '20px 24px', maxWidth: 640, margin: '0 auto' }}>
 
         {/* Header */}
-        <div style={{ marginBottom: 24 }}>
-          <button
-            onClick={() => navigate('/staff')}
-            style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', fontSize: 12, cursor: 'pointer', padding: 0, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}
-          >
-            ← Back to Staff
-          </button>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: 'var(--color-text-primary)', letterSpacing: '-.03em', margin: 0 }}>
-            Add Staff Member
-          </h1>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+          <div>
+          <Button variant="ghost" size="sm" leftIcon={<ArrowLeft size={16} aria-hidden="true" />} onClick={() => navigate('/staff')}>
+            Staff
+          </Button>
+          </div>
+          <PageHeader title="Add staff member" lede="Create a profile, place them in the organisation and choose how they get access" />
         </div>
 
         {/* Step indicators */}
-        <div style={{ display: 'flex', gap: 0, marginBottom: 28, background: 'white', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', gap: 0, marginBottom: 28, background: 'var(--surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', overflow: 'hidden' }}>
           {STEPS.map((s, i) => {
             const active = i === step;
             const done   = i < step;
@@ -159,7 +158,7 @@ export default function StaffCreatePage() {
         </div>
 
         {/* Step content */}
-        <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', padding: '20px 24px', marginBottom: 16 }}>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', padding: '20px 24px', marginBottom: 16 }}>
 
           {step === 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

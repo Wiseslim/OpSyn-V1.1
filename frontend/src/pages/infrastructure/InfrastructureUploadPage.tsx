@@ -1,21 +1,28 @@
 // ============================================================
 // OPSYN — InfrastructureUploadPage
-// Bulk FTTH asset upload: splitter / cabinet / OLT
+// Bulk upload of network plant (poles, FATs, FDTs, cables… into the
+// unified network) and of the original asset register (OLT, cabinet,
+// splitter). Types, columns and accepted formats come from
+// GET /infrastructure/upload-types, so a new type needs no change here.
 //
 // Three-step workflow:
-//   Step 1 — Select asset type + choose xlsx file
+//   Step 1 — Select asset type + choose an Excel or GeoJSON file
 //   Step 2 — Validation results (valid / error / duplicate rows)
 //   Step 3 — Commit confirmation or error report download
 // ============================================================
 
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import type { UploadTypeSpec } from '@shared';
 import { infrastructureApi } from '../../api/index';
+import { networkApi } from '../../api/network.api';
 import { useUIStore } from '../../store/ui.store';
 import { Button, Spinner } from '../../components/ui';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import type { ApiError } from '../../api/client';
+import { ArrowLeft } from 'lucide-react';
+import { PageHeader } from '../../components/layout/Page';
 
 // ── Toast helper ─────────────────────────────────────────────
 function useToast() {
@@ -28,7 +35,7 @@ function useToast() {
 }
 
 // ── Types ─────────────────────────────────────────────────────
-type AssetType  = 'splitter' | 'cabinet' | 'olt';
+type AssetType  = string;
 type StepId     = 1 | 2 | 3;
 
 interface ValidationSummary {
@@ -50,17 +57,12 @@ interface CommitResult {
   error?:        string;
 }
 
-const ASSET_OPTIONS: { label: string; value: AssetType; description: string }[] = [
-  { label: 'Splitter Boxes',     value: 'splitter', description: 'First-Level & Second-Level GPON splitters' },
-  { label: 'Cabinets',           value: 'cabinet',  description: 'ODF splice cabinets with GPS coordinates' },
-  { label: 'OLTs',               value: 'olt',      description: 'Optical Line Terminals' },
+const ACCEPT: Record<'xlsx' | 'geojson', string> = { xlsx: '.xlsx', geojson: '.geojson,.json' };
+const FORMAT_NAME: Record<'xlsx' | 'geojson', string> = { xlsx: 'Excel (.xlsx)', geojson: 'GeoJSON' };
+const GROUPS: { id: UploadTypeSpec['group']; label: string; note: string }[] = [
+  { id: 'network', label: 'Network plant', note: 'Goes straight onto the network map' },
+  { id: 'register', label: 'Asset register', note: 'OLTs, cabinets and splitters, also shown on the network map' },
 ];
-
-const REQUIRED_COLS: Record<AssetType, string[]> = {
-  splitter: ['box_id', 'input', 'output', 'splitter_level', 'splitter_type', 'longitude', 'latitude'],
-  cabinet:  ['cabinet_id', 'capacity', 'number_tray', 'longitude', 'latitude'],
-  olt:      ['name', 'location', 'longitude', 'latitude'],
-};
 
 // ── Step indicator ────────────────────────────────────────────
 function StepIndicator({ current }: { current: StepId }) {
@@ -111,7 +113,12 @@ function InfrastructureUploadContent() {
   const fileRef  = useRef<HTMLInputElement>(null);
 
   const [step,       setStep]       = useState<StepId>(1);
-  const [assetType,  setAssetType]  = useState<AssetType>('splitter');
+  const [assetType,  setAssetType]  = useState<AssetType>('pole');
+  const [showOptional, setShowOptional] = useState(false);
+  const types = useQuery({ queryKey: ['infra', 'upload-types'], queryFn: networkApi.uploadTypes, staleTime: Infinity });
+  const spec = types.data?.find(t => t.key === assetType);
+  const formats = spec?.formats ?? ['xlsx'];
+  const formatText = formats.map(f => FORMAT_NAME[f]).join(' or ');
   const [file,       setFile]       = useState<File | null>(null);
   const [summary,    setSummary]    = useState<ValidationSummary | null>(null);
   const [commitResult, setCommitResult] = useState<CommitResult | null>(null);
@@ -154,7 +161,7 @@ function InfrastructureUploadContent() {
   };
 
   const handleUpload = () => {
-    if (!file) { toast.error('No file selected', 'Please choose an xlsx file first'); return; }
+    if (!file) { toast.error('No file selected', `Choose an ${formatText} file first`); return; }
     uploadMutation.mutate({ assetType, file });
   };
 
@@ -190,47 +197,98 @@ function InfrastructureUploadContent() {
   };
 
   // ── Render helpers ───────────────────────────────────────────
+  const downloadTemplate = async () => {
+    if (!spec) return;
+    try {
+      const blob = await networkApi.uploadTemplate(spec.key);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `opsyn_${spec.key}_template.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Download failed', 'The template could not be downloaded');
+    }
+  };
+
   const renderStep1 = () => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* Asset type selector */}
-      <div>
-        <label style={labelStyle}>Asset Type</label>
-        <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-          {ASSET_OPTIONS.map(opt => (
-            <button
-              key={opt.value}
-              onClick={() => setAssetType(opt.value)}
-              style={{
-                flex: 1, padding: '12px 16px', borderRadius: 8, cursor: 'pointer',
-                background: assetType === opt.value ? 'var(--accent-dim)' : 'var(--surface2)',
-                border: `2px solid ${assetType === opt.value ? 'var(--accent)' : 'var(--border)'}`,
-                textAlign: 'left', transition: 'all 0.15s',
-              }}
-            >
-              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--chalk1)', marginBottom: 4 }}>
-                {opt.label}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--chalk3)' }}>{opt.description}</div>
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Asset type selector, grouped */}
+      {types.isLoading && <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}><Spinner size="xs" /> Loading upload types…</div>}
+      {types.isError && <div role="alert" style={{ fontSize: 13, color: 'var(--status-critical-fg)' }}>Couldn't load the upload types. Reload the page to try again.</div>}
+      {GROUPS.map(g => {
+        const items = (types.data ?? []).filter(t => t.group === g.id);
+        if (!items.length) return null;
+        return (
+          <fieldset key={g.id} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
+            <legend style={labelStyle}>{g.label}</legend>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>{g.note}</div>
+            <div role="radiogroup" aria-label={g.label} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 10 }}>
+              {items.map(opt => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={assetType === opt.key}
+                  onClick={() => { setAssetType(opt.key); setFile(null); setShowOptional(false); if (fileRef.current) fileRef.current.value = ''; }}
+                  style={{
+                    padding: '10px 12px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
+                    background: assetType === opt.key ? 'var(--surface-selected)' : 'var(--surface)',
+                    border: `2px solid ${assetType === opt.key ? 'var(--brand)' : 'var(--border)'}`,
+                    color: 'var(--text-primary)', font: 'inherit',
+                  }}
+                >
+                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2 }}>{opt.label}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{opt.description}</div>
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        );
+      })}
 
-      {/* Required columns hint */}
-      <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '12px 16px' }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--chalk2)', marginBottom: 6 }}>
-          Required xlsx columns
+      {/* Columns */}
+      {spec && (
+        <div style={{ background: 'var(--surface-sunken)', borderRadius: 8, padding: '12px 16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>Required columns</div>
+            <Button variant="ghost" size="sm" onClick={downloadTemplate}>Download Excel template</Button>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {spec.required_columns.map(col => <span key={col} style={chipStyle}>{col}</span>)}
+          </div>
+          {spec.geojson_geometry && (
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>
+              {spec.geojson_geometry === 'Point'
+                ? 'In GeoJSON, a Point geometry replaces longitude and latitude.'
+                : 'In GeoJSON, a LineString geometry replaces geometry_wkt. In Excel, write the route as LINESTRING(lng lat, lng lat, …).'}
+              {' '}Leave asset_code blank to have a code generated.
+            </div>
+          )}
+          {spec.optional_columns.length > 0 && (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowOptional(v => !v)}
+                aria-expanded={showOptional}
+                style={{ marginTop: 8, padding: 0, border: 0, background: 'none', color: 'var(--accent-text)', font: 'inherit', fontSize: 12, textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                {showOptional ? 'Hide optional columns' : `Show ${spec.optional_columns.length} optional columns`}
+              </button>
+              {showOptional && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                  {spec.optional_columns.map(col => <span key={col} style={chipStyle}>{col}</span>)}
+                </div>
+              )}
+            </>
+          )}
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {REQUIRED_COLS[assetType].map(col => (
-            <span key={col} style={chipStyle}>{col}</span>
-          ))}
-        </div>
-      </div>
+      )}
 
       {/* File input */}
       <div>
-        <label style={labelStyle}>Excel File (.xlsx)</label>
+        <label style={labelStyle}>{formatText} file</label>
         <div style={{
           marginTop: 8, border: '2px dashed var(--border)', borderRadius: 10,
           padding: '24px', textAlign: 'center', background: 'var(--surface2)',
@@ -238,7 +296,7 @@ function InfrastructureUploadContent() {
           <input
             ref={fileRef}
             type="file"
-            accept=".xlsx"
+            accept={formats.map(f => ACCEPT[f]).join(',')}
             onChange={handleFileChange}
             style={{ display: 'none' }}
             id="upload-file-input"
@@ -247,9 +305,9 @@ function InfrastructureUploadContent() {
             <div style={{ fontSize: 28, marginBottom: 8 }}>📂</div>
             <div style={{ fontSize: 13, color: 'var(--chalk2)', marginBottom: 4 }}>
               {file ? (
-                <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{file.name}</span>
+                <span style={{ color: 'var(--accent-text)', fontWeight: 600 }}>{file.name}</span>
               ) : (
-                <span>Click to choose a <strong>.xlsx</strong> file</span>
+                <span>Click to choose an <strong>{formatText}</strong> file</span>
               )}
             </div>
             <div style={{ fontSize: 11, color: 'var(--chalk4)' }}>Max 10 MB</div>
@@ -261,7 +319,7 @@ function InfrastructureUploadContent() {
         <Button variant="ghost" onClick={() => navigate('/infrastructure')}>Cancel</Button>
         <Button
           onClick={handleUpload}
-          disabled={!file || uploadMutation.isPending}
+          disabled={!file || !spec || uploadMutation.isPending}
         >
           {uploadMutation.isPending ? <><Spinner size="xs" /> Validating…</> : 'Upload & Validate'}
         </Button>
@@ -399,7 +457,7 @@ function InfrastructureUploadContent() {
           </div>
           {succeeded ? (
             <div style={{ fontSize: 14, color: 'var(--chalk2)' }}>
-              <strong>{commitResult.committed_rows}</strong> {summary?.asset_type} record{commitResult.committed_rows !== 1 ? 's' : ''} added to the live database.
+              <strong>{commitResult.committed_rows}</strong> {spec?.label.toLowerCase() ?? 'records'} added{spec?.group === 'network' ? ' to the network map' : ' to the register and the network map'}.
             </div>
           ) : (
             <div style={{ fontSize: 13, color: 'var(--error)' }}>
@@ -422,22 +480,11 @@ function InfrastructureUploadContent() {
       {/* Page header */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
-          <button
-            onClick={() => navigate('/infrastructure')}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--chalk3)', fontSize: 13, padding: 0,
-            }}
-          >
-            ← Infrastructure
-          </button>
+          <Button variant="ghost" size="sm" leftIcon={<ArrowLeft size={16} aria-hidden="true" />} onClick={() => navigate('/infrastructure')}>
+            Infrastructure
+          </Button>
         </div>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--chalk1)' }}>
-          Bulk Asset Upload
-        </h1>
-        <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--chalk3)' }}>
-          Import splitters, cabinets, or OLTs from an Excel file. All rows are validated before any data is written.
-        </p>
+        <PageHeader title="Bulk asset upload" lede="Import network plant or register assets from Excel or GeoJSON. Every row is checked before anything is written." />
       </div>
 
       {/* Step indicator */}

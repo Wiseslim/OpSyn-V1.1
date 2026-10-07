@@ -9,6 +9,9 @@ import type { OutageNotificationRule } from '@shared';
 import { useUIStore } from '../../store/ui.store';
 import { Button, Badge, Modal, Input, Select } from '../../components/ui';
 import type { ApiError } from '../../api/client';
+import { useUrlTab } from '../../hooks/useUrlTab';
+import { Page, PageHeader } from '../../components/layout/Page';
+import { GlassModal, GlassSelect } from '../../components/glass';
 
 function useToast() {
   const { addToast } = useUIStore();
@@ -43,8 +46,19 @@ const TABS: { key: SettingsTab; label: string }[] = [
   { key: 'pipelines',          label: 'Pipelines' },
   { key: 'integrations',       label: 'Integrations' },
   { key: 'webhooks',           label: 'Webhooks' },
-  { key: 'notification-rules', label: 'Notification Rules' },
+  { key: 'notification-rules', label: 'Notification rules' },
 ];
+
+const SECTION_LEDE: Record<SettingsTab, string> = {
+  'org':                'Tenant profile, branding and time zone',
+  'departments':        'Department structure and what each department can use',
+  'roles':              'Roles and their access levels',
+  'regions':            'Operating regions for sites, staff and reporting',
+  'pipelines':          'Task and project pipelines and their stages',
+  'integrations':       'SmartOLT, email and other connected services',
+  'webhooks':           'Outgoing webhooks and signing secrets',
+  'notification-rules': 'Who is notified about which events',
+};
 
 const ROLE_LEVEL_VARIANT: Record<number, any> = {
   5: 'critical',
@@ -81,7 +95,7 @@ const TD: React.CSSProperties = { padding: '11px 16px', borderBottom: '1px solid
 
 function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', padding: 16, ...style }}>
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', padding: 16, ...style }}>
       {children}
     </div>
   );
@@ -105,7 +119,8 @@ export default function SettingsPage() {
   const qc    = useQueryClient();
   const toast = useToast();
 
-  const [tab, setTab]                         = useState<SettingsTab>('org');
+  // In the URL (?tab=…) so navigation links like /settings?tab=webhooks open the right tab
+  const [tab]                                 = useUrlTab<SettingsTab>(TABS.map(t => t.key), 'org');
   const [expandedDept, setExpandedDept]       = useState<string | null>(null);
   const [deptModal, setDeptModal]             = useState(false);
   const [roleModal, setRoleModal]             = useState(false);
@@ -270,25 +285,14 @@ export default function SettingsPage() {
   const SEV_COLOR: Record<string, string> = { critical: 'var(--color-red)', high: 'var(--color-amber)', warning: 'var(--color-teal)', low: 'var(--color-text-muted)' };
 
   return (
-    <div style={{ overflow: 'auto', flex: 1, background: 'var(--color-surface)', padding: '20px 24px' }}>
-
-      {/* Tab bar */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
-        {TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            style={{
-              padding: '7px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-              cursor: 'pointer', fontFamily: 'var(--font-body)',
-              border:     tab === t.key ? '1px solid rgba(0,194,168,.3)' : '1px solid var(--color-border)',
-              background: tab === t.key ? 'rgba(0,194,168,.08)' : 'white',
-              color:      tab === t.key ? 'var(--color-teal)' : 'var(--color-text-muted)',
-              transition: 'all .15s',
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+    <Page>
+      {/* Sections are switched from the section menu (or the section tabs on
+          tablets and phones), so the page names where you are instead of
+          repeating the same list as a second tab bar */}
+      <PageHeader
+        title={TABS.find(x => x.key === tab)?.label ?? 'Settings'}
+        lede={SECTION_LEDE[tab]}
+      />
 
       {/* ── Organisation ── */}
       {tab === 'org' && (
@@ -353,7 +357,7 @@ export default function SettingsPage() {
               const isExp    = expandedDept === d.id;
               const grouped  = isExp ? featuresByModule() : {};
               return (
-                <div key={d.id} style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', overflow: 'hidden' }}>
+                <div key={d.id} style={{ background: 'var(--surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', overflow: 'hidden' }}>
                   <div
                     style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', cursor: 'pointer' }}
                     onClick={() => setExpandedDept(isExp ? null : d.id)}
@@ -415,12 +419,7 @@ export default function SettingsPage() {
                                       {granted ? '✓ ' : ''}{f.feature_label}
                                     </button>
                                     {granted && (
-                                      <select value={grantedLevel}
-                                        onChange={e => { const l = Number(e.target.value); grantFeature.mutate({ deptId: d.id, key: f.feature_key, level: l }); }}
-                                        style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', fontSize: 9, cursor: 'pointer', outline: 'none', fontFamily: 'var(--font-body)' }}
-                                      >
-                                        {[1, 2, 3, 4, 5].map(l => <option key={l} value={l}>L{l}+</option>)}
-                                      </select>
+                                      <GlassSelect value={String(grantedLevel)} onChange={v => { const l = Number(v); grantFeature.mutate({ deptId: d.id, key: f.feature_key, level: l }); }} options={[...[1, 2, 3, 4, 5].map((l) => ({ value: String(l), label: `L${l}+` }))]} ariaLabel={`Minimum role level for ${f.feature_label}`} compact />
                                     )}
                                   </div>
                                 );
@@ -728,8 +727,7 @@ export default function SettingsPage() {
 
       {/* ── Created-secret overlay ── */}
       {createdSecret && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: 'white', borderRadius: 14, padding: 28, width: 520, maxWidth: '95vw', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-panel)' }}>
+        <GlassModal open onClose={() => setCreatedSecret(null)} ariaLabel="API key created" size="md">
             <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 16, color: 'var(--color-text-primary)', marginBottom: 4 }}>Webhook Key Created</div>
             <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 20 }}>
               App: <Badge variant="info" size="sm">{createdSecret.app_name}</Badge>
@@ -752,8 +750,7 @@ export default function SettingsPage() {
             <Button variant="primary" onClick={() => setCreatedSecret(null)} style={{ width: '100%' }}>
               Done — I've saved the secret
             </Button>
-          </div>
-        </div>
+          </GlassModal>
       )}
 
       {/* Modals */}
@@ -889,6 +886,6 @@ export default function SettingsPage() {
           </label>
         </div>
       </Modal>
-    </div>
+    </Page>
   );
 }

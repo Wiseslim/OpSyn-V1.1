@@ -1,15 +1,18 @@
 // ============================================================
-// OPSYN UI — Input + Textarea  (Stage 3 rebuild)
-// Design tokens: --color-border, --color-teal, --color-red,
-//                --color-text-primary, --color-text-muted, --font-body, --font-display
-// Features: 40px height, teal focus ring (box-shadow), red error border,
-//           required asterisk in teal, prefix/suffix icons
+// OPSYN UI — Input + Textarea  (Phase 4)
+// Same props as before (79 + 10 call sites), plus `unit` for telecom
+// values. Sentence-case labels; hint/error announced with the field
+// (aria-describedby); errors set aria-invalid; required is aria-required
+// with a visual marker. `style` still wraps the field (default bottom
+// spacing kept so existing forms don't reflow); `inputStyle` the control.
 // ============================================================
 
-import React, { useState } from 'react';
+import React, { useId } from 'react';
+import styles from './Field.module.css';
 
 export interface InputProps {
   label?:       string;
+  ariaLabel?:   string;
   id?:          string;
   value:        string | number;
   onChange:     (value: string) => void;
@@ -26,99 +29,56 @@ export interface InputProps {
   max?:         number | string;
   prefix?:      React.ReactNode;
   suffix?:      React.ReactNode;
+  /** Unit shown inside the field, e.g. "dBm", "km", "%" */
+  unit?:        string;
+  autoComplete?: string;
+  inputMode?:   React.HTMLAttributes<HTMLInputElement>['inputMode'];
   style?:       React.CSSProperties;
   inputStyle?:  React.CSSProperties;
 }
 
-// ── Label ──────────────────────────────────────────────────────
-function FieldLabel({ htmlFor, error, required, children }: {
-  htmlFor?: string;
-  error?:   string;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
+function useFieldIds(id: string | undefined, label: string | undefined) {
+  const auto = useId();
+  const fieldId = id ?? (label ? label.toLowerCase().replace(/\s+/g, '-') : `field-${auto.replace(/:/g, '')}`);
+  return { fieldId, messageId: `${fieldId}-message` };
+}
+
+function FieldLabel({ htmlFor, required, children }: { htmlFor: string; required?: boolean; children: React.ReactNode }) {
   return (
-    <label htmlFor={htmlFor} style={{
-      display:       'block',
-      fontSize:      11,
-      fontWeight:    700,
-      fontFamily:    'var(--font-display)',
-      color:         error ? 'var(--color-red)' : 'var(--color-text-muted)',
-      marginBottom:  5,
-      textTransform: 'uppercase',
-      letterSpacing: '0.06em',
-    }}>
+    <label htmlFor={htmlFor} className={styles.label}>
       {children}
-      {required && <span style={{ color: 'var(--color-teal)', marginLeft: 2 }}>*</span>}
+      {required && <span className={styles.required} aria-hidden="true">*</span>}
     </label>
   );
 }
 
-// ── Hint / Error text ──────────────────────────────────────────
-function FieldMessage({ error, hint }: { error?: string; hint?: string }) {
-  if (error) return <div style={{ fontSize: 11, color: 'var(--color-red)',       marginTop: 4 }}>{error}</div>;
-  if (hint)  return <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>{hint}</div>;
-  return null;
+function FieldMessage({ id, error, hint }: { id: string; error?: string; hint?: string }) {
+  if (!error && !hint) return null;
+  return (
+    <div id={id} className={`${styles.message} ${error ? styles.error : ''}`}>
+      {error ?? hint}
+    </div>
+  );
 }
 
-// ══ INPUT ═════════════════════════════════════════════════════
 export function Input({
-  label,
-  id,
-  value,
-  onChange,
-  type       = 'text',
-  placeholder,
-  error,
-  hint,
-  required,
-  disabled,
-  readOnly,
-  autoFocus,
-  maxLength,
-  min,
-  max,
-  prefix,
-  suffix,
-  style,
-  inputStyle,
+  label, ariaLabel, id, value, onChange, type = 'text', placeholder, error, hint,
+  required, disabled, readOnly, autoFocus, maxLength, min, max,
+  prefix, suffix, unit, autoComplete, inputMode, style, inputStyle,
 }: InputProps) {
-  const inputId  = id ?? (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
-  const [focused, setFocused] = useState(false);
-
-  const borderColor = error   ? 'var(--color-red)'
-                    : focused ? 'var(--color-teal)'
-                    : 'var(--color-border)';
-  const ring = focused && !error
-    ? '0 0 0 2px rgba(0,194,168,0.20)'
-    : 'none';
+  const { fieldId, messageId } = useFieldIds(id, label);
+  const trailing = unit ?? suffix;
 
   return (
-    <div style={{ marginBottom: 14, ...style }}>
-      {label && (
-        <FieldLabel htmlFor={inputId} error={error} required={required}>
-          {label}
-        </FieldLabel>
-      )}
+    <div className={styles.field} style={style}>
+      {label && <FieldLabel htmlFor={fieldId} required={required}>{label}</FieldLabel>}
 
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-        {prefix && (
-          <span style={{
-            position:      'absolute',
-            left:          10,
-            color:         'var(--color-text-muted)',
-            fontSize:      13,
-            pointerEvents: 'none',
-            display:       'flex',
-            alignItems:    'center',
-          }}>
-            {prefix}
-          </span>
-        )}
-
+      <div className={styles.control}>
+        {prefix && <span className={`${styles.affix} ${styles.prefix}`}>{prefix}</span>}
         <input
-          id={inputId}
-          name={inputId}
+          id={fieldId}
+          name={fieldId}
+          aria-label={ariaLabel}
           type={type}
           value={value}
           onChange={e => onChange(e.target.value)}
@@ -130,49 +90,24 @@ export function Input({
           min={min}
           max={max}
           required={required}
-          onFocus={() => setFocused(true)}
-          onBlur={()  => setFocused(false)}
-          style={{
-            width:        '100%',
-            height:       40,
-            background:   'white',
-            border:       `1px solid ${borderColor}`,
-            borderRadius: 8,
-            padding:      `0 ${suffix ? 36 : 12}px 0 ${prefix ? 36 : 12}px`,
-            color:        'var(--color-text-primary)',
-            fontFamily:   'var(--font-body)',
-            fontSize:     13,
-            outline:      'none',
-            boxShadow:    ring,
-            transition:   'border-color 150ms, box-shadow 150ms',
-            boxSizing:    'border-box',
-            opacity:      disabled ? 0.5 : 1,
-            cursor:       disabled ? 'not-allowed' : readOnly ? 'default' : undefined,
-            ...inputStyle,
-          }}
+          autoComplete={autoComplete}
+          inputMode={inputMode}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error || hint || unit ? messageId : undefined}
+          className={[styles.input, prefix && styles.hasPrefix, trailing && styles.hasSuffix].filter(Boolean).join(' ')}
+          style={unit ? { paddingRight: `calc(${unit.length}ch + 28px)`, ...inputStyle } : inputStyle}
         />
-
-        {suffix && (
-          <span style={{
-            position:      'absolute',
-            right:         10,
-            color:         'var(--color-text-muted)',
-            fontSize:      13,
-            pointerEvents: 'none',
-            display:       'flex',
-            alignItems:    'center',
-          }}>
-            {suffix}
-          </span>
-        )}
+        {unit
+          ? <span className={styles.unit} aria-hidden="true">{unit}</span>
+          : suffix && <span className={`${styles.affix} ${styles.suffix}`}>{suffix}</span>}
       </div>
+      {/* The unit is part of the value's meaning — give it to screen readers too */}
+      {unit && !hint && !error && <span id={messageId} className="sr-only">in {unit}</span>}
 
-      <FieldMessage error={error} hint={hint} />
+      <FieldMessage id={messageId} error={error} hint={hint ? `${hint}${unit ? ` (${unit})` : ''}` : undefined} />
     </div>
   );
 }
-
-// ══ TEXTAREA ══════════════════════════════════════════════════
 
 export interface TextareaProps {
   label?:       string;
@@ -187,72 +122,36 @@ export interface TextareaProps {
   disabled?:    boolean;
   maxLength?:   number;
   style?:       React.CSSProperties;
+  onBlur?:      () => void;
+  /** For dialogs that focus the field first (GlassModal initialFocus) */
+  textareaRef?: React.Ref<HTMLTextAreaElement>;
 }
 
 export function Textarea({
-  label,
-  id,
-  value,
-  onChange,
-  placeholder,
-  rows      = 3,
-  error,
-  hint,
-  required,
-  disabled,
-  maxLength,
-  style,
+  label, id, value, onChange, placeholder, rows = 3, error, hint, required, disabled, maxLength, style, onBlur, textareaRef,
 }: TextareaProps) {
-  const inputId = id ?? (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
-  const [focused, setFocused] = useState(false);
-
-  const borderColor = error   ? 'var(--color-red)'
-                    : focused ? 'var(--color-teal)'
-                    : 'var(--color-border)';
-  const ring = focused && !error
-    ? '0 0 0 2px rgba(0,194,168,0.20)'
-    : 'none';
-
+  const { fieldId, messageId } = useFieldIds(id, label);
   return (
-    <div style={{ marginBottom: 14, ...style }}>
-      {label && (
-        <FieldLabel htmlFor={inputId} error={error} required={required}>
-          {label}
-        </FieldLabel>
-      )}
-
+    <div className={styles.field} style={style}>
+      {label && <FieldLabel htmlFor={fieldId} required={required}>{label}</FieldLabel>}
       <textarea
-        id={inputId}
-        name={inputId}
+        ref={textareaRef}
+        id={fieldId}
+        name={fieldId}
         value={value}
         onChange={e => onChange(e.target.value)}
+        onBlur={onBlur}
         placeholder={placeholder}
         rows={rows}
         disabled={disabled}
         maxLength={maxLength}
         required={required}
-        onFocus={() => setFocused(true)}
-        onBlur={()  => setFocused(false)}
-        style={{
-          width:        '100%',
-          background:   'white',
-          border:       `1px solid ${borderColor}`,
-          borderRadius: 8,
-          padding:      '10px 12px',
-          color:        'var(--color-text-primary)',
-          fontFamily:   'var(--font-body)',
-          fontSize:     13,
-          outline:      'none',
-          boxShadow:    ring,
-          transition:   'border-color 150ms, box-shadow 150ms',
-          boxSizing:    'border-box',
-          resize:       'vertical',
-          minHeight:    rows * 28,
-          opacity:      disabled ? 0.5 : 1,
-        }}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error || hint ? messageId : undefined}
+        className={styles.input}
+        style={{ minHeight: rows * 24 }}
       />
-
-      <FieldMessage error={error} hint={hint} />
+      <FieldMessage id={messageId} error={error} hint={hint} />
     </div>
   );
 }

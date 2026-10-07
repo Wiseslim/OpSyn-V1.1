@@ -17,12 +17,13 @@
 import io
 import uuid
 import asyncio
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch, call
 import pytest
 import openpyxl
 
 from app.modules.infrastructure.gis_utils import (
-    validate_coordinates, make_point, warn_zero_island,
+    validate_coordinates, make_point, normalize_coordinate,
 )
 from app.modules.infrastructure.upload_service import (
     validate_file, validate_headers, validate_row_splitter,
@@ -99,9 +100,46 @@ class TestValidateCoordinates:
         assert not valid
         assert any("valid number" in e.lower() for e in errors)
 
-    def test_zero_island_warning(self):
-        assert warn_zero_island(0.0, 0.0) is True
-        assert warn_zero_island(1.0, 2.0) is False
+    def test_zero_island_is_an_error_not_a_warning(self):
+        # FTTX_INFRASTRUCTURE_FIXES.md #2 promoted (0,0) from warning to hard
+        # error and deleted warn_zero_island(). Assert the behaviour that
+        # replaced it.
+        valid, errors = validate_coordinates(0.0, 0.0)
+        assert not valid
+        assert any("(0, 0)" in e for e in errors)
+
+    def test_normalize_coordinate_keeps_survey_precision(self):
+        # The whole point of parsing to Decimal: 6.524378 must not come back
+        # as 6.524377999999.
+        value, err, warn = normalize_coordinate("6.524378", field="latitude")
+        assert err is None
+        assert warn is None
+        assert str(value) == "6.524378"
+        assert value == Decimal("6.524378")
+
+    def test_normalize_coordinate_does_not_round(self):
+        # cabinets/olts/splitter_boxes are double precision, so there is no
+        # justification for quantising to 7dp. Rounding here would discard
+        # data the column can hold.
+        value, err, warn = normalize_coordinate("6.52437812345", field="latitude")
+        assert err is None
+        assert warn is None
+        assert value == Decimal("6.52437812345")
+
+    def test_normalize_coordinate_warns_only_beyond_double_precision(self):
+        value, err, warn = normalize_coordinate("6.5243781234567890123", field="latitude")
+        assert err is None
+        assert warn is not None and "decimal places" in warn
+
+    def test_normalize_coordinate_strips_trailing_zeros(self):
+        # WKT and the numeric column must render identically.
+        assert str(normalize_coordinate("6.50", field="lng")[0]) == "6.5"
+
+    def test_normalize_coordinate_rejects_junk(self):
+        for junk in ("abc", "", None, "NaN", "Infinity"):
+            value, err, warn = normalize_coordinate(junk, field="longitude")
+            assert value is None
+            assert err is not None
 
 
 # ══════════════════════════════════════════════════════════════
@@ -110,26 +148,35 @@ class TestValidateCoordinates:
 
 class TestValidateRowSplitter:
 
-    def test_lowercase_level_returns_exact_error(self):
-        """Gate 3: 'first-level' must produce exact error message."""
+    def test_lowercase_level_is_normalised_not_rejected(self):
+        """Fix #4: 'first-level' is accepted and rewritten to the canonical form.
+
+        This used to assert the exact-match error. The fix exists precisely
+        because field spreadsheets arrive with inconsistent casing and the
+        old behaviour rejected valid data.
+        """
         row = _valid_splitter_row(level="first-level")
         result = validate_row_splitter(row)
-        assert not result.valid
-        error_messages = [e["error"] for e in result.errors]
-        assert any(
-            "splitter_level must be exactly 'First-Level' or 'Second-Level'" == msg
-            for msg in error_messages
-        ), f"Exact error not found. Got: {error_messages}"
+        assert result.valid, result.errors
+        assert row["splitter_level"] == "First-Level"
 
-    def test_allcaps_level_invalid(self):
+    def test_allcaps_level_is_accepted(self):
         row = _valid_splitter_row(level="FIRST-LEVEL")
         result = validate_row_splitter(row)
-        assert not result.valid
+        assert result.valid, result.errors
+        assert row["splitter_level"] == "First-Level"
 
-    def test_spaced_level_invalid(self):
-        row = _valid_splitter_row(level="First Level")  # space instead of hyphen
+    def test_spaced_level_is_accepted(self):
+        row = _valid_splitter_row(level="First Level")
+        result = validate_row_splitter(row)
+        assert result.valid, result.errors
+        assert row["splitter_level"] == "First-Level"
+
+    def test_genuinely_unknown_level_is_still_rejected(self):
+        row = _valid_splitter_row(level="Third-Level")
         result = validate_row_splitter(row)
         assert not result.valid
+        assert any("splitter_level" in e["error"] for e in result.errors)
 
     def test_valid_splitter_row(self):
         result = validate_row_splitter(_valid_splitter_row())
@@ -140,12 +187,18 @@ class TestValidateRowSplitter:
         result = validate_row_splitter(_valid_splitter_row(level="Second-Level"))
         assert result.valid
 
-    def test_invalid_splitter_type(self):
+    def test_lowercase_splitter_type_is_normalised_not_rejected(self):
+        """Fix #4, second half: 'pcc' must be accepted and upper-cased."""
         row = {**_valid_splitter_row(), "splitter_type": "pcc"}
         result = validate_row_splitter(row)
+        assert result.valid, result.errors
+        assert row["splitter_type"] == "PCC"
+
+    def test_invalid_splitter_type(self):
+        row = {**_valid_splitter_row(), "splitter_type": "fibreglass"}
+        result = validate_row_splitter(row)
         assert not result.valid
-        assert any("splitter_type must be exactly 'PCC' or 'Legacy'" in e["error"]
-                   for e in result.errors)
+        assert any("splitter_type" in e["error"] for e in result.errors)
 
     def test_missing_required_field(self):
         row = {**_valid_splitter_row(), "box_id": None}
@@ -162,12 +215,13 @@ class TestValidateRowSplitter:
         result = validate_row_splitter(row)
         assert not result.valid
 
-    def test_zero_island_warning(self):
+    def test_zero_island_is_rejected(self):
+        # Fix #2: (0,0) became a hard error, not a warning. Assets were
+        # landing in the Gulf of Guinea and passing review.
         row = {**_valid_splitter_row(), "longitude": 0, "latitude": 0}
         result = validate_row_splitter(row)
-        # (0,0) is a WARNING, not an error — row should still be valid
-        assert result.valid
-        assert any("0, 0" in w or "0,0" in w for w in result.warnings)
+        assert not result.valid
+        assert any("(0, 0)" in e["error"] for e in result.errors)
 
     def test_collects_all_errors(self):
         """Validation must collect all errors in a single pass, not stop early."""
@@ -224,10 +278,15 @@ class TestRunFullValidation:
         session_id = uuid.uuid4()
         tenant_id  = uuid.uuid4()
 
-        # Build 8 valid rows + 2 with invalid splitter_level
+        # Build 8 valid rows + 2 that are genuinely invalid.
+        #
+        # This used to use "first-level" and "FIRST-LEVEL" as the bad rows,
+        # but fix #4 made those valid on purpose, so they no longer produce
+        # errors. An out-of-range longitude and a bad enum are unambiguously
+        # wrong under the current rules.
         rows = [_valid_splitter_row(box_id=f"SPL-{i:03d}") for i in range(8)]
-        rows.append({**_valid_splitter_row(box_id="SPL-ERR-001"), "splitter_level": "first-level"})
-        rows.append({**_valid_splitter_row(box_id="SPL-ERR-002"), "splitter_level": "FIRST-LEVEL"})
+        rows.append({**_valid_splitter_row(box_id="SPL-ERR-001"), "longitude": 999})
+        rows.append({**_valid_splitter_row(box_id="SPL-ERR-002"), "splitter_level": "Third-Level"})
         file_bytes = _make_splitter_xlsx(rows)
 
         # Mock InfraUploadSession

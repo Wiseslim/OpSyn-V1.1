@@ -44,9 +44,10 @@ export function TicketBadge({ id, style }: TicketBadgeProps) {
         fontSize:       12,
         fontWeight:     600,
         letterSpacing:  '0.02em',
-        color:          copied ? 'var(--color-teal)' : 'var(--color-text-muted)',
-        background:     copied ? 'rgba(0,194,168,0.10)' : 'var(--color-surface-2)',
-        border:         `1px solid ${copied ? 'var(--color-teal)' : 'var(--color-border)'}`,
+        // Teal as text uses the contrast-safe accent (brand teal is 2.3:1 on white)
+        color:          copied ? 'var(--accent-text)' : 'var(--text-secondary)',
+        background:     copied ? 'var(--brand-tint)' : 'var(--surface-sunken)',
+        border:         `1px solid ${copied ? 'var(--accent-text)' : 'var(--border)'}`,
         borderRadius:   'var(--radius-badge)',
         padding:        '2px 8px',
         cursor:         'pointer',

@@ -14,6 +14,7 @@ import type {
   Shift, ShiftAssignment, ShiftSwapRequest, OutageNotificationRule,
   InfraPort, InfraCapacityAlert, InfraMonitoringConfig, InfraAlertRule,
   InfraMapData, InfraUtilisationPoint,
+  TrendMetric, TrendBucket, TrendSeries,
 } from '@shared';
 
 // ── Auth ─────────────────────────────────────────────────────
@@ -96,9 +97,20 @@ export const outageApi = {
     apiClient.get<APIResponse<PaginatedResponse<OutageIncident>>>('/outages', { params })
       .then(r => r.data.data),
 
-  getLive: () =>
-    apiClient.get<APIResponse<OutageIncident[]>>('/outages?status=active&status=monitoring')
-      .then(r => r.data.data),
+  // Every open (unresolved) outage, newest first. The endpoint filters on a
+  // single status, so one request per open status. (This previously sent
+  // ?status=active&status=monitoring in one request; FastAPI keeps only the
+  // last value, so 'active' outages were silently missing.)
+  getLive: async (): Promise<OutageIncident[]> => {
+    const OPEN: OutageIncident['status'][] = ['active', 'monitoring', 'in_resolution'];
+    const pages = await Promise.all(OPEN.map(status =>
+      apiClient.get<APIResponse<PaginatedResponse<OutageIncident> | OutageIncident[]>>('/outages', { params: { status } })
+        .then(r => r.data.data),
+    ));
+    return pages
+      .flatMap(p => (Array.isArray(p) ? p : p?.items ?? []))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  },
 
   get: (id: string) =>
     apiClient.get<APIResponse<OutageIncident>>(`/outages/${id}`).then(r => r.data.data),
@@ -223,6 +235,9 @@ export const reportsApi = {
 
   getSlaReport: () =>
     apiClient.get('/reports/sla').then(r => r.data.data),
+
+  getTrends: (params: { metric: TrendMetric; bucket?: TrendBucket; days?: number }) =>
+    apiClient.get<APIResponse<TrendSeries>>('/reports/trends', { params }).then(r => r.data.data),
 };
 
 // ── Dashboard ─────────────────────────────────────────────────

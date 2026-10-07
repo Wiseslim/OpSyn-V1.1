@@ -17,25 +17,30 @@ export default defineConfig({
       // tries to parse zustand's CJS files, which have an unparseable
       // nested-object `exports.default` entry in zustand v4.
       { find: /^zustand\/(.+)$/, replacement: `${zustandEsm}/$1.js` },
-      { find: 'zustand',         replacement: `${zustandEsm}/index.js` },
+      { find: 'zustand', replacement: `${zustandEsm}/index.js` },
+
       // Project path aliases
       // NOTE: '@shared' must precede '@' -- vite matches prefixes in
       // array order, so '@' would otherwise swallow it.
-      { find: '@shared',     replacement: resolve(__dirname, './shared-types/index.ts') },
-      { find: '@',           replacement: resolve(__dirname, './src') },
-      { find: '@api',        replacement: resolve(__dirname, './src/api') },
+      { find: '@shared', replacement: resolve(__dirname, './shared-types/index.ts') },
+      { find: '@', replacement: resolve(__dirname, './src') },
+      { find: '@api', replacement: resolve(__dirname, './src/api') },
       { find: '@components', replacement: resolve(__dirname, './src/components') },
-      { find: '@hooks',      replacement: resolve(__dirname, './src/hooks') },
-      { find: '@pages',      replacement: resolve(__dirname, './src/pages') },
-      { find: '@store',      replacement: resolve(__dirname, './src/store') },
-      { find: '@types',      replacement: resolve(__dirname, './src/types') },
-      { find: '@utils',      replacement: resolve(__dirname, './src/utils') },
-      { find: '@assets',     replacement: resolve(__dirname, './src/assets') },
+      { find: '@hooks', replacement: resolve(__dirname, './src/hooks') },
+      { find: '@pages', replacement: resolve(__dirname, './src/pages') },
+      { find: '@store', replacement: resolve(__dirname, './src/store') },
+      { find: '@types', replacement: resolve(__dirname, './src/types') },
+      { find: '@utils', replacement: resolve(__dirname, './src/utils') },
+      { find: '@assets', replacement: resolve(__dirname, './src/assets') },
     ],
   },
 
   server: {
     port: 5173,
+
+    // Allow Cloudflare Quick Tunnel URLs
+    allowedHosts: ['.trycloudflare.com'],
+
     proxy: {
       '/api': {
         target: 'http://localhost:8000',
@@ -49,7 +54,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],
-          query:  ['@tanstack/react-query'],
+          query: ['@tanstack/react-query'],
         },
       },
     },
@@ -57,8 +62,8 @@ export default defineConfig({
   },
 
   test: {
-    globals:     true,
+    globals: true,
     environment: 'jsdom',
-    setupFiles:  './src/test/setup.ts',
+    setupFiles: './src/test/setup.ts',
   },
 })

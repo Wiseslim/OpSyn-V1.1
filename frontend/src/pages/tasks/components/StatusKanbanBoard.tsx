@@ -40,7 +40,7 @@ export default function StatusKanbanBoard({ board, loading, onSelect, onAdd }: P
       flex:       1,
       padding:    '16px 20px 20px',
       alignItems: 'flex-start',
-    }}>
+    }} tabIndex={0} role="region" aria-label="Task board by status">
       {STATUS_COLUMNS.map(col => {
         const tasks: Task[] = (board as any)?.[col.key] ?? [];
         return (

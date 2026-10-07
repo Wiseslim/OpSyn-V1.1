@@ -9,6 +9,8 @@ import { useAuthStore } from '../../store/auth.store';
 import { useUIStore } from '../../store/ui.store';
 import { Button, Badge, Modal, Input, Select, Textarea, DataTable, type Column } from '../../components/ui';
 import type { ApiError } from '../../api/client';
+import { Plus } from 'lucide-react';
+import { Page, PageHeader } from '../../components/layout/Page';
 
 const toArr = (d: any): any[] => Array.isArray(d) ? d : (d?.items ?? []);
 
@@ -38,7 +40,7 @@ const STATUS_LABEL: Record<string, string> = {
 function KpiTile({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div style={{
-      background: 'white', border: '1px solid var(--color-border)',
+      background: 'var(--surface)', border: '1px solid var(--color-border)',
       borderRadius: 'var(--radius-card)', padding: '16px 18px',
       borderTop: `3px solid ${color}`,
     }}>
@@ -167,21 +169,14 @@ export default function OnboardingPage() {
   ];
 
   return (
-    <div style={{ overflow: 'auto', flex: 1, background: 'var(--color-surface)' }}>
-      <div style={{ padding: '20px 24px' }}>
+    <Page>
 
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
-          <div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: 'var(--color-text-primary)', letterSpacing: '-.03em', margin: 0 }}>
-              Onboarding Requests
-            </h1>
-            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, marginBottom: 0 }}>
-              {awaitingMgr} awaiting manager · {awaitingAdmin} awaiting admin · Two-phase approval
-            </p>
-          </div>
-          <Button variant="primary" size="sm" onClick={() => setSubmitModal(true)}>+ Submit Request</Button>
-        </div>
+        <PageHeader
+        title="Onboarding Requests"
+        lede={<>{awaitingMgr} awaiting manager · {awaitingAdmin} awaiting admin · Two-phase approval</>}
+        primary={<Button variant="primary" size="sm" onClick={() => setSubmitModal(true)} leftIcon={<Plus size={16} aria-hidden="true" />}>Submit Request</Button>}
+      />
 
         {/* KPI row */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 20 }}>
@@ -199,7 +194,7 @@ export default function OnboardingPage() {
           emptyTitle="No onboarding requests"
           emptyMessage="Submit a request to onboard a new team member."
         />
-      </div>
+      
 
       {/* Submit request modal */}
       <Modal
@@ -254,6 +249,6 @@ export default function OnboardingPage() {
         </p>
         <Textarea label="Reason (optional)" value={rejectReason} onChange={v => setRejectReason(v)} placeholder="Reason for rejection…" rows={3} />
       </Modal>
-    </div>
+    </Page>
   );
 }

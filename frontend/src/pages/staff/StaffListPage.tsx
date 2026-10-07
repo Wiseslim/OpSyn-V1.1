@@ -12,6 +12,9 @@ import { useUIStore } from '../../store/ui.store';
 import { useAuthStore } from '../../store/auth.store';
 import { Button, Badge, Modal, DataTable, Pagination, type Column } from '../../components/ui';
 import type { ApiError } from '../../api/client';
+import { GlassSelect } from '../../components/glass';
+import { Plus } from 'lucide-react';
+import { Page, PageHeader } from '../../components/layout/Page';
 
 const toArr = (d: any): any[] => Array.isArray(d) ? d : (d?.items ?? []);
 
@@ -76,7 +79,7 @@ export default function StaffListPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
               width: 28, height: 28, borderRadius: '50%',
-              background: 'var(--color-teal)',
+              background: 'var(--brand)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 11, fontWeight: 700, color: 'var(--color-navy)', flexShrink: 0,
             }}>
@@ -153,51 +156,41 @@ export default function StaffListPage() {
   ];
 
   return (
-    <div style={{ overflow: 'auto', flex: 1, background: 'var(--color-surface)' }}>
-      <div style={{ padding: '20px 24px' }}>
+    <Page>
 
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
-          <div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: 'var(--color-text-primary)', letterSpacing: '-.03em', margin: 0 }}>
-              Personnel Directory
-            </h1>
-            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, marginBottom: 0 }}>{total} total staff members</p>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button variant="secondary" size="sm">Export CSV</Button>
-            <Button variant="primary" size="sm" onClick={() => navigate('/staff/new')}>+ Add Personnel</Button>
-          </div>
-        </div>
+        <PageHeader
+        title="Personnel Directory"
+        lede={<>{total} total staff members</>}
+        primary={<><Button variant="secondary" size="sm">Export CSV</Button><Button variant="primary" size="sm" onClick={() => navigate('/staff/new')} leftIcon={<Plus size={16} aria-hidden="true" />}>Add Personnel</Button></>}
+      />
 
         {/* Filters */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-          <div style={{
+          <label style={{
             display: 'flex', alignItems: 'center', gap: 8,
-            background: 'white', border: '1px solid var(--color-border)',
-            borderRadius: 8, padding: '7px 12px', flex: 1, maxWidth: 280,
+            background: 'var(--surface)', border: '1px solid var(--color-border)',
+            borderRadius: 8, padding: '7px 12px', flex: '1 1 220px', maxWidth: 320, minWidth: 0, cursor: 'text',
           }}>
             <svg width="13" height="13" viewBox="0 0 13 13" fill="var(--color-text-muted)">
               <circle cx="5.5" cy="5.5" r="4" fill="none" stroke="currentColor" strokeWidth="1.4"/>
               <path d="M9 9l3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
             </svg>
             <input
+              type="search"
+              aria-label="Search staff"
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="Name, email, staff ID…"
-              style={{ background: 'none', border: 'none', outline: 'none', color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)', fontSize: 12, width: '100%' }}
+              style={{ background: 'none', border: 'none', outline: 'none', color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)', fontSize: 12, width: '100%', minHeight: 24 }}
             />
-          </div>
+          </label>
           {[
             { val: deptFilter, set: setDept,   opts: toArr(depts).map((d: any) => ({ label: d.name, value: d.id })),  placeholder: 'All Departments' },
             { val: roleFilter, set: setRole,   opts: toArr(roles).map((r: any) => ({ label: r.name, value: r.id })),  placeholder: 'All Roles' },
             { val: statusFilter, set: setStatus, opts: [{ label: 'Active', value: 'active' }, { label: 'Inactive', value: 'inactive' }, { label: 'Suspended', value: 'suspended' }], placeholder: 'All Statuses' },
           ].map((f, i) => (
-            <select key={i} value={f.val} onChange={e => { f.set(e.target.value); setPage(1); }}
-              style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: 8, color: 'var(--color-text-primary)', padding: '7px 10px', fontFamily: 'var(--font-body)', fontSize: 12, cursor: 'pointer', outline: 'none' }}>
-              <option value="">{f.placeholder}</option>
-              {f.opts.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+            <GlassSelect key={i} value={String(f.val)} onChange={v => { f.set(v); setPage(1); }} options={[...f.opts.map((o: any) => ({ value: String(o.value), label: String(o.label) }))]} placeholder={String(f.placeholder)} ariaLabel={f.placeholder} compact />
           ))}
         </div>
 
@@ -214,7 +207,7 @@ export default function StaffListPage() {
         <div style={{ marginTop: 12 }}>
           <Pagination page={page} pageSize={20} total={total} onPage={setPage} />
         </div>
-      </div>
+      
 
       {/* Deactivate confirmation */}
       <Modal
@@ -269,6 +262,6 @@ export default function StaffListPage() {
           </p>
         </div>
       </Modal>
-    </div>
+    </Page>
   );
 }

@@ -12,6 +12,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { formBuilderApi, type FormSubmission } from '../../api/form-builder.api';
 import FormRenderer from '../../components/form-builder/FormRenderer';
+import { GlassModal, GlassSelect } from '../../components/glass';
 
 // ── Utilities ─────────────────────────────────────────────────
 
@@ -81,25 +82,7 @@ function SubmissionDetailModal({
   };
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0,
-        background: 'rgba(0,0,0,0.60)',
-        zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          width: 700, maxWidth: 'calc(100vw - 48px)',
-          maxHeight: 'calc(100vh - 80px)',
-          display: 'flex', flexDirection: 'column',
-          background: 'var(--color-surface)',
-          borderRadius: 10, border: '1px solid var(--color-border)',
-          boxShadow: 'var(--shadow-panel)', overflow: 'hidden',
-        }}
-      >
+    <GlassModal open onClose={onClose} ariaLabel="Submission details" size="lg" hideClose>
         {/* Modal header */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 10,
@@ -114,7 +97,7 @@ function SubmissionDetailModal({
               Submission Detail
             </div>
             <div style={{
-              fontSize: 10, color: 'rgba(255,255,255,0.35)',
+              fontSize: 10, color: 'var(--text-muted)',
               fontFamily: 'monospace',
             }}>
               {submission.id}
@@ -138,7 +121,7 @@ function SubmissionDetailModal({
             onClick={onClose}
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              color: 'rgba(255,255,255,0.40)', fontSize: 20, lineHeight: 1, padding: 4,
+              color: 'var(--text-muted)', fontSize: 20, lineHeight: 1, padding: 4,
             }}
           >
             ×
@@ -214,8 +197,7 @@ function SubmissionDetailModal({
             )}
           </div>
         )}
-      </div>
-    </div>
+      </GlassModal>
   );
 }
 
@@ -269,7 +251,7 @@ export default function FormSubmissionsPage() {
     return (
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: '100%', color: 'rgba(255,255,255,0.30)',
+        height: '100%', color: 'var(--text-muted)',
         fontFamily: 'var(--font-display)', fontSize: 13,
       }}>
         No schema selected.
@@ -278,7 +260,7 @@ export default function FormSubmissionsPage() {
   }
 
   return (
-    <div style={{
+    <div data-surface="console" style={{
       display: 'flex', flexDirection: 'column',
       height: '100%', overflow: 'hidden',
       background: 'var(--color-bg)',
@@ -294,44 +276,27 @@ export default function FormSubmissionsPage() {
           onClick={() => navigate(`/form-builder/${schemaId}`)}
           style={{
             background: 'none', border: 'none', cursor: 'pointer',
-            color: 'rgba(255,255,255,0.45)',
+            color: 'var(--text-muted)',
             fontFamily: 'var(--font-display)', fontSize: 12,
           }}
         >
           ← Builder
         </button>
-        <div style={{
-          fontSize: 14, fontWeight: 700,
+        <h1 style={{
+          fontSize: 14, fontWeight: 700, margin: 0,
           fontFamily: 'var(--font-display)', color: 'var(--chalk1)',
         }}>
           Submissions
           {schemaQ.data && (
-            <span style={{ color: 'rgba(255,255,255,0.40)', fontWeight: 400, marginLeft: 8, fontSize: 12 }}>
+            <span style={{ color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8, fontSize: 12 }}>
               {schemaQ.data.name}
             </span>
           )}
-        </div>
+        </h1>
         <div style={{ flex: 1 }} />
 
         {/* Status filter */}
-        <select
-          value={statusFilter}
-          onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-          style={{
-            padding: '5px 10px', borderRadius: 6,
-            border: '1px solid var(--color-border)',
-            background: 'rgba(255,255,255,0.06)',
-            color: 'var(--chalk2)',
-            fontFamily: 'var(--font-display)', fontSize: 12,
-            outline: 'none', cursor: 'pointer',
-          }}
-        >
-          <option value="">All statuses</option>
-          <option value="draft">Draft</option>
-          <option value="submitted">Submitted</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-        </select>
+        <GlassSelect value={String(statusFilter)} onChange={v => { setStatusFilter(v); setPage(1); }} options={[{ value: 'draft', label: 'Draft' }, { value: 'submitted', label: 'Submitted' }, { value: 'approved', label: 'Approved' }, { value: 'rejected', label: 'Rejected' }]} placeholder={'All statuses'} ariaLabel="Filter by status" compact />
 
         <button
           onClick={() => navigate(`/form-builder/${schemaId}/preview`)}
@@ -353,7 +318,7 @@ export default function FormSubmissionsPage() {
         {subsQ.isLoading && (
           <div style={{
             padding: '40px', textAlign: 'center',
-            color: 'rgba(255,255,255,0.30)',
+            color: 'var(--text-muted)',
             fontFamily: 'var(--font-display)', fontSize: 13,
           }}>
             Loading submissions…
@@ -363,7 +328,7 @@ export default function FormSubmissionsPage() {
         {!subsQ.isLoading && submissions.length === 0 && (
           <div style={{
             padding: '60px', textAlign: 'center',
-            color: 'rgba(255,255,255,0.22)',
+            color: 'var(--text-muted)',
             fontFamily: 'var(--font-display)', fontSize: 13,
           }}>
             {statusFilter
@@ -386,7 +351,7 @@ export default function FormSubmissionsPage() {
                   <th key={h} style={{
                     padding: '10px 16px', textAlign: 'left' as const,
                     fontSize: 10, fontWeight: 700,
-                    color: 'rgba(255,255,255,0.35)',
+                    color: 'var(--text-muted)',
                     letterSpacing: '0.10em', textTransform: 'uppercase' as const,
                     whiteSpace: 'nowrap' as const,
                   }}>
@@ -429,7 +394,7 @@ export default function FormSubmissionsPage() {
                   </td>
                   <td style={{
                     padding: '12px 16px', fontSize: 11,
-                    color: 'rgba(255,255,255,0.38)', fontFamily: 'monospace',
+                    color: 'var(--text-muted)', fontFamily: 'monospace',
                   }}>
                     {sub.entity_id
                       ? sub.entity_id.slice(0, 8) + '…'
@@ -437,7 +402,7 @@ export default function FormSubmissionsPage() {
                   </td>
                   <td style={{
                     padding: '12px 16px', fontSize: 11,
-                    color: 'rgba(255,255,255,0.38)', fontFamily: 'monospace',
+                    color: 'var(--text-muted)', fontFamily: 'monospace',
                   }}>
                     {sub.submitted_by
                       ? sub.submitted_by.slice(0, 8) + '…'
@@ -486,7 +451,7 @@ export default function FormSubmissionsPage() {
             ← Prev
           </button>
           <span style={{
-            fontSize: 12, color: 'rgba(255,255,255,0.45)', fontFamily: 'var(--font-display)',
+            fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-display)',
           }}>
             Page {page} of {totalPages} ({total} total)
           </span>

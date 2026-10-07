@@ -10,6 +10,8 @@ import { useQuery } from '@tanstack/react-query';
 import { projectsApi, orgApi } from '../../api/index';
 import { Button, Badge, Select } from '../../components/ui';
 import NewTaskModal from '../tasks/components/NewTaskModal';
+import { Plus } from 'lucide-react';
+import { Page, PageHeader } from '../../components/layout/Page';
 
 const toArr = (d: any): any[] => Array.isArray(d) ? d : (d?.items ?? []);
 
@@ -81,26 +83,15 @@ export default function ProjectsPage() {
   }, [projects]);
 
   return (
-    <div style={{ overflow: 'auto', flex: 1, background: 'var(--color-surface)' }}>
-      <div style={{ padding: '20px 24px' }}>
+    <Page>
 
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
-          <div>
-            <h1 style={{
-              fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800,
-              color: 'var(--color-text-primary)', letterSpacing: '-.03em', margin: 0,
-            }}>
-              Projects
-            </h1>
-            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, marginBottom: 0 }}>
-              {filtered.length} of {projects.length} project{projects.length !== 1 ? 's' : ''}
-            </p>
-          </div>
-          <Button variant="primary" size="sm" onClick={() => setNewTaskOpen(true)}>
-            + Create External Task
-          </Button>
-        </div>
+        <PageHeader
+        title="Projects"
+        lede={<>{filtered.length} of {projects.length} project{projects.length !== 1 ? 's' : ''}</>}
+        primary={<Button variant="primary" size="sm" onClick={() => setNewTaskOpen(true)} leftIcon={<Plus size={16} aria-hidden="true" />}>Create External Task
+          </Button>}
+      />
 
         {/* Info banner */}
         <div style={{
@@ -188,7 +179,7 @@ export default function ProjectsPage() {
                   key={p.id}
                   onClick={() => navigate(`/projects/${p.id}/pipeline`)}
                   style={{
-                    background: 'white',
+                    background: 'var(--surface)',
                     border: '1px solid var(--color-border)',
                     borderRadius: 'var(--radius-card)',
                     padding: '16px 18px',
@@ -292,13 +283,13 @@ export default function ProjectsPage() {
             })}
           </div>
         )}
-      </div>
+      
 
       <NewTaskModal
         open={newTaskOpen}
         onClose={() => setNewTaskOpen(false)}
         initialScope="external"
       />
-    </div>
+    </Page>
   );
 }

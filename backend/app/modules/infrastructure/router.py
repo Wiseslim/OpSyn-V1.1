@@ -34,6 +34,7 @@ from app.modules.infrastructure.deletion_service import (
     match_deletion_keys_splitter,
     match_deletion_keys_cabinet,
     match_deletion_keys_olt,
+    collect_cascade_targets,
     execute_deletion,
 )
 
@@ -608,6 +609,9 @@ async def infrastructure_map(
                 "splitter_type": s.splitter_type,
                 "input_ports": s.input_ports, "output_ports": s.output_ports,
                 "number_customer": s.number_customer,
+                # Topology for the map's path trace (splitter → parent → cabinet)
+                "parent_splitter_id": str(s.parent_splitter_id) if s.parent_splitter_id else None,
+                "cabinet_id": str(s.cabinet_id) if s.cabinet_id else None,
             }
             for s in splitters_rows
         ],
@@ -843,7 +847,76 @@ async def trigger_sync_ports(
 # GET   /infrastructure/upload/{session_id}/error-report — xlsx download
 # ═══════════════════════════════════════════════════════════════
 
-_VALID_UPLOAD_TYPES = frozenset({"splitter", "cabinet", "olt"})
+_LEGACY_UPLOAD_TYPES = {
+    "olt":      ("OLTs", "Optical line terminals"),
+    "cabinet":  ("Cabinets", "ODF splice cabinets"),
+    "splitter": ("Splitter boxes", "First- and second-level GPON splitters"),
+}
+
+
+def _valid_upload_types() -> frozenset[str]:
+    from app.modules.network.upload import NET_UPLOAD_TYPES
+    return frozenset(_LEGACY_UPLOAD_TYPES) | frozenset(NET_UPLOAD_TYPES)
+
+
+_VALID_UPLOAD_TYPES = _valid_upload_types()
+
+
+@router.get(
+    "/infrastructure/upload-types",
+    summary="What can be bulk-uploaded, with its columns",
+    tags=["Infrastructure Upload"],
+)
+async def list_upload_types(caller: User = Depends(check_permission("infrastructure.view"))):
+    """Every upload type with its required and optional columns and accepted formats.
+
+    The upload page renders from this list, so adding a type needs no frontend change.
+    """
+    from app.modules.infrastructure.upload_service import ASSET_COLUMNS_KEYS, REQUIRED_COLUMNS
+    from app.modules.network.upload import upload_type_specs
+    legacy = [
+        {
+            "key": key, "label": label, "description": desc, "group": "register", "kind": "asset",
+            "asset_type": key.upper() if key != "splitter" else "SPLITTER",
+            "formats": ["xlsx"],
+            "required_columns": REQUIRED_COLUMNS[key],
+            "optional_columns": [c for c in ASSET_COLUMNS_KEYS[key] if c not in REQUIRED_COLUMNS[key]],
+            "geojson_geometry": None,
+        }
+        for key, (label, desc) in _LEGACY_UPLOAD_TYPES.items()
+    ]
+    return {"success": True, "data": legacy + upload_type_specs()}
+
+
+@router.get(
+    "/infrastructure/upload-types/{asset_type}/template",
+    summary="Download an Excel template for an upload type",
+    tags=["Infrastructure Upload"],
+)
+async def download_upload_template(
+    asset_type: str,
+    caller: User = Depends(check_permission("infrastructure.view")),
+):
+    import io
+
+    import openpyxl
+    from app.modules.infrastructure.upload_service import ASSET_COLUMNS_DISPLAY
+    from app.modules.network.upload import NET_UPLOAD_TYPES, template_xlsx
+    if asset_type in NET_UPLOAD_TYPES:
+        buf = template_xlsx(NET_UPLOAD_TYPES[asset_type])
+    elif asset_type in _LEGACY_UPLOAD_TYPES:
+        wb = openpyxl.Workbook()
+        wb.active.append(ASSET_COLUMNS_DISPLAY[asset_type])
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+    else:
+        raise HTTPException(status_code=404, detail=f"Unknown upload type '{asset_type}'")
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="opsyn_{asset_type}_template.xlsx"'},
+    )
 
 
 @router.post(
@@ -854,7 +927,7 @@ _VALID_UPLOAD_TYPES = frozenset({"splitter", "cabinet", "olt"})
 )
 async def upload_asset_file(
     asset_type: str,
-    file: UploadFile = File(..., description="xlsx file (max 10 MB)"),
+    file: UploadFile = File(..., description="xlsx file (max 10 MB); network types also take GeoJSON"),
     db: AsyncSession = Depends(get_db),
     caller: User = Depends(check_permission("infrastructure.edit")),
 ):
@@ -1201,6 +1274,39 @@ async def upload_deletion_file(
         for r in match_results
     ]
 
+    # Layer 3: what execute will take with it. Deleting a cabinet or a
+    # First-Level splitter also removes the splitters mounted in / below it,
+    # so the approver has to see those before confirming.
+    matched_ids = [r.asset_id for r in match_results if r.status == "matched" and r.asset_id]
+    _, cascade_ids = await collect_cascade_targets(
+        db, asset_type, matched_ids, caller.tenant_id
+    )
+    cascade_preview: list[dict] = []
+    if cascade_ids:
+        parent_names = {
+            r.asset_id: r.key.get("cabinet_id") or r.key.get("box_id") or ""
+            for r in match_results if r.asset_id
+        }
+        cascade_rows = (await db.execute(
+            select(
+                SplitterBox.id, SplitterBox.box_id,
+                SplitterBox.parent_splitter_id, SplitterBox.cabinet_id,
+            ).where(SplitterBox.id.in_(cascade_ids))
+        )).all()
+        root_ids = set(matched_ids)
+        for row in cascade_rows:
+            parent_key = (
+                parent_names.get(row.parent_splitter_id)
+                or parent_names.get(row.cabinet_id)
+                or (row.parent_splitter_id or row.cabinet_id)
+            )
+            cascade_preview.append({
+                "asset_id":   str(row.id),
+                "asset_key":  row.box_id,
+                "parent_key": str(parent_key) if parent_key else None,
+                "from_match": row.id in root_ids,
+            })
+
     # Create deletion session
     session_obj = InfraDeletionSession(
         tenant_id=caller.tenant_id,
@@ -1210,6 +1316,9 @@ async def upload_deletion_file(
         total_rows=validation.total_rows,
         matched_rows=matched_count,
         unmatched_rows=unmatched_count,
+        deleted_rows=None,
+        cascaded_rows=len(cascade_preview),
+        cascade_preview=cascade_preview,
         match_details=match_details,
         submitted_by=caller.id,
         submitted_at=datetime.datetime.now(datetime.timezone.utc),
@@ -1279,6 +1388,10 @@ def _deletion_session_dict(s: InfraDeletionSession) -> dict:
         "matched_rows":      s.matched_rows,
         "unmatched_rows":    s.unmatched_rows,
         "deleted_rows":      s.deleted_rows,
+        "cascaded_rows":     s.cascaded_rows,
+        "cascade_preview":   s.cascade_preview or [],
+        "total_effective":   (s.deleted_rows if s.deleted_rows is not None
+                              else (s.matched_rows or 0)) + (s.cascaded_rows or 0),
         "match_details":     s.match_details or [],
         "submitted_by":      str(s.submitted_by) if s.submitted_by else None,
         "submitted_at":      s.submitted_at.isoformat() if s.submitted_at else None,

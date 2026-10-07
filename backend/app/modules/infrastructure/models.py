@@ -13,12 +13,7 @@ from sqlalchemy import String, Text, Integer, SmallInteger, Numeric, Date, Forei
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-try:
-    from geoalchemy2 import Geometry
-    _HAS_GEOALCHEMY2 = True
-except ImportError:  # graceful degradation when geoalchemy2 not installed
-    Geometry = None  # type: ignore[assignment,misc]
-    _HAS_GEOALCHEMY2 = False
+from geoalchemy2 import Geometry  # Required dependency for PostGIS support
 
 from app.core.database import Base
 from app.modules.tasks.models import Task  # noqa: F401 — registers tasks table so InfraCapacityAlert FK resolves
@@ -181,9 +176,8 @@ class InfraAlertRule(Base):
 # FTTH Asset Management — Phase 1 ORM Models
 # ══════════════════════════════════════════════════════════════
 
-# Geometry column type — uses geoalchemy2 when available, falls back to Text
-# (Text fallback is compile-safe; actual DB column is geometry(Point,4326))
-_PointGeom = Geometry("POINT", srid=4326) if _HAS_GEOALCHEMY2 else Text()
+# Geometry column type — PostGIS Point with SRID 4326 (WGS84)
+_PointGeom = Geometry("POINT", srid=4326)
 
 
 class InfraUploadSession(Base):
@@ -228,6 +222,8 @@ class InfraDeletionSession(Base):
     matched_rows:      Mapped[int | None]              = mapped_column(Integer)
     unmatched_rows:    Mapped[int | None]              = mapped_column(Integer)
     deleted_rows:      Mapped[int | None]              = mapped_column(Integer)
+    cascaded_rows:     Mapped[int]                     = mapped_column(Integer, nullable=False, default=0)
+    cascade_preview:   Mapped[list[Any]]               = mapped_column(JSONB, default=list)
     match_details:     Mapped[list[Any] | None]        = mapped_column(JSONB, default=list)
     submitted_by:      Mapped[uuid.UUID | None]        = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     approved_by:       Mapped[uuid.UUID | None]        = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))

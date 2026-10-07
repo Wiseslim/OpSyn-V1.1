@@ -9,11 +9,16 @@ import { useNavigate } from 'react-router-dom';
 import { infrastructureApi } from '../../api/index';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { Pagination } from '../../components/ui/Pagination';
+import { GlassSelect } from '../../components/glass';
+import { PageHeader } from '../../components/layout/Page';
 
 // ── Inline style helpers ──────────────────────────────────────
 const s = {
   page: {
-    padding: '24px 28px',
+    padding: 'clamp(16px, 4vw, 24px) clamp(16px, 4vw, 28px)',
+    minWidth: 0,
+    width: '100%',
+    boxSizing: 'border-box',
     maxWidth: 1200,
     margin: '0 auto',
     fontFamily: 'var(--font)',
@@ -244,14 +249,10 @@ function AuditPageInner() {
   return (
     <div style={s.page}>
       {/* ── Header ── */}
-      <div style={s.header}>
-        <div>
-          <h1 style={s.title}>Infrastructure Audit Log</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--chalk3)' }}>
-            Full history of uploads, deletions and changes to FTTH assets
-          </p>
-        </div>
-        <button
+      <PageHeader
+        title="Infrastructure Audit Log"
+        lede="Full history of uploads, deletions and changes to FTTH assets"
+        primary={<button
           onClick={() => navigate('/infrastructure')}
           style={{
             padding: '7px 16px', borderRadius: 8, border: '1px solid var(--wire)',
@@ -260,8 +261,8 @@ function AuditPageInner() {
           }}
         >
           ← Back to Infrastructure
-        </button>
-      </div>
+        </button>}
+      />
 
       {/* ── Filters ── */}
       <div style={s.card}>
@@ -269,25 +270,12 @@ function AuditPageInner() {
         <div style={s.filterRow}>
           <div style={s.filterGroup}>
             <span style={s.label}>Asset Type</span>
-            <select value={assetType} onChange={e => { setAssetType(e.target.value); setPage(1); }} style={s.select}>
-              <option value="">All types</option>
-              <option value="splitter">Splitter</option>
-              <option value="cabinet">Cabinet</option>
-              <option value="olt">OLT</option>
-            </select>
+            <GlassSelect value={String(assetType)} onChange={v => { setAssetType(v); setPage(1); }} options={[{ value: 'splitter', label: 'Splitter' }, { value: 'cabinet', label: 'Cabinet' }, { value: 'olt', label: 'OLT' }]} placeholder={'All types'} ariaLabel="Filter by asset type" compact />
           </div>
 
           <div style={s.filterGroup}>
             <span style={s.label}>Action</span>
-            <select value={action} onChange={e => { setAction(e.target.value); setPage(1); }} style={s.select}>
-              <option value="">All actions</option>
-              <option value="COMMITTED">Committed</option>
-              <option value="DELETED">Deleted</option>
-              <option value="ROLLED_BACK">Rolled back</option>
-              <option value="CREATED">Created</option>
-              <option value="UPDATED">Updated</option>
-              <option value="VALIDATED">Validated</option>
-            </select>
+            <GlassSelect value={String(action)} onChange={v => { setAction(v); setPage(1); }} options={[{ value: 'COMMITTED', label: 'Committed' }, { value: 'DELETED', label: 'Deleted' }, { value: 'ROLLED_BACK', label: 'Rolled back' }, { value: 'CREATED', label: 'Created' }, { value: 'UPDATED', label: 'Updated' }, { value: 'VALIDATED', label: 'Validated' }]} placeholder={'All actions'} ariaLabel="Filter by action" compact />
           </div>
 
           <div style={s.filterGroup}>
@@ -333,6 +321,7 @@ function AuditPageInner() {
         )}
         {!isLoading && !isError && (
           <>
+            <div style={{ overflowX: 'auto' }} tabIndex={0} role="region" aria-label="Audit entries">
             <table style={s.table}>
               <thead>
                 <tr>
@@ -391,6 +380,7 @@ function AuditPageInner() {
                 ))}
               </tbody>
             </table>
+            </div>
 
             <div style={{ marginTop: 16 }}>
               <Pagination

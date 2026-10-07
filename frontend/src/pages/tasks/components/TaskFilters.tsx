@@ -5,6 +5,7 @@
 
 import type { TaskFilters } from '../../../store/task.store';
 import type { Department } from '@shared';
+import { GlassSelect } from '../../../components/glass';
 
 
 const PRIORITY_OPTIONS = [
@@ -32,18 +33,6 @@ const BUCKET_OPTIONS = [
   { label: 'No Deadline',    value: 'no_deadline' },
   { label: 'Backlog',        value: 'backlog' },
 ];
-
-const SEL_STYLE: React.CSSProperties = {
-  background:   'var(--bg3)',
-  border:       '1px solid var(--wire2)',
-  borderRadius: 8,
-  padding:      '6px 10px',
-  color:        'var(--chalk2)',
-  fontFamily:   'var(--font)',
-  fontSize:     11,
-  outline:      'none',
-  cursor:       'pointer',
-};
 
 interface Props {
   filters:      TaskFilters;
@@ -99,49 +88,16 @@ export default function TaskFilters({ filters, departments, onChange, onClear, t
       </div>
 
       {/* Priority */}
-      <select
-        value={filters.priority}
-        onChange={e => onChange({ priority: e.target.value as any })}
-        style={SEL_STYLE}
-      >
-        {PRIORITY_OPTIONS.map(o => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
+      <GlassSelect value={String(filters.priority)} onChange={v => onChange({ priority: v as any })} options={[...PRIORITY_OPTIONS.map((o) => ({ value: String(o.value), label: String(o.label) }))]} ariaLabel="Filter by priority" compact />
 
       {/* Status */}
-      <select
-        value={filters.status}
-        onChange={e => onChange({ status: e.target.value as any })}
-        style={SEL_STYLE}
-      >
-        {STATUS_OPTIONS.map(o => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
+      <GlassSelect value={String(filters.status)} onChange={v => onChange({ status: v as any })} options={[...STATUS_OPTIONS.map((o) => ({ value: String(o.value), label: String(o.label) }))]} ariaLabel="Filter by status" compact />
 
       {/* Department */}
-      <select
-        value={filters.dept_id}
-        onChange={e => onChange({ dept_id: e.target.value })}
-        style={SEL_STYLE}
-      >
-        <option value="">All Departments</option>
-        {departments.map(d => (
-          <option key={d.id} value={d.id}>{d.name}</option>
-        ))}
-      </select>
+      <GlassSelect value={String(filters.dept_id)} onChange={v => onChange({ dept_id: v })} options={[...departments.map((d) => ({ value: String(d.id), label: String(d.name) }))]} placeholder={'All Departments'} ariaLabel="Filter by department" compact />
 
       {/* Deadline bucket */}
-      <select
-        value={filters.deadline_bucket}
-        onChange={e => onChange({ deadline_bucket: e.target.value as any })}
-        style={SEL_STYLE}
-      >
-        {BUCKET_OPTIONS.map(o => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
+      <GlassSelect value={String(filters.deadline_bucket)} onChange={v => onChange({ deadline_bucket: v as any })} options={[...BUCKET_OPTIONS.map((o) => ({ value: String(o.value), label: String(o.label) }))]} ariaLabel="Filter by deadline" compact />
 
       {/* Clear */}
       {hasActive && (

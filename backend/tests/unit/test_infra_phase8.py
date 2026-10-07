@@ -182,11 +182,25 @@ class TestMaxRowsGuard:
 
         # Build a ws mock that:
         #  • returns valid header row (so validate_headers passes), AND
-        #  • reports max_row > MAX_ROWS_PER_SHEET (triggers the guard)
+        #  • actually yields more than MAX_ROWS_PER_SHEET data rows
+        #
+        # Fix #5 stopped trusting ws.max_row (it is spreadsheet metadata and a
+        # crafted file can understate it), so the guard counts rows by walking
+        # iter_rows. A mock that only faked max_row no longer trips it — the
+        # mock has to actually produce the rows.
         ws_mock = MagicMock()
-        ws_mock.max_row = MAX_ROWS_PER_SHEET + 2
-        # iter_rows call in validate_headers needs to yield one header tuple
-        ws_mock.iter_rows.return_value = iter([tuple(_splitter_header())])
+        ws_mock.max_row = 2   # deliberately lies: claims a tiny sheet
+
+        header = tuple(_splitter_header())
+        data_rows = [header] + [header] * (MAX_ROWS_PER_SHEET + 5)
+
+        def _iter_rows(*, min_row=1, max_row=None, values_only=False):
+            if min_row == 1:
+                return iter([header])
+            # The validation pass walks every data row.
+            return iter(data_rows[1:])
+
+        ws_mock.iter_rows = MagicMock(side_effect=_iter_rows)
 
         wb_mock = MagicMock()
         wb_mock.active = ws_mock
@@ -322,9 +336,11 @@ class TestCableRouteExcluded:
         from app.modules.infrastructure.router import _VALID_DELETION_TYPES
         assert "cable_route" not in _VALID_DELETION_TYPES
 
-    def test_only_three_upload_types(self):
+    def test_upload_types_are_the_register_plus_network_types(self):
+        # Network GIS Phase 2 added the network plant types alongside the three register types
         from app.modules.infrastructure.router import _VALID_UPLOAD_TYPES
-        assert _VALID_UPLOAD_TYPES == frozenset({"splitter", "cabinet", "olt"})
+        from app.modules.network.upload import NET_UPLOAD_TYPES
+        assert _VALID_UPLOAD_TYPES == frozenset({"splitter", "cabinet", "olt"}) | frozenset(NET_UPLOAD_TYPES)
 
     def test_only_three_deletion_types(self):
         from app.modules.infrastructure.router import _VALID_DELETION_TYPES

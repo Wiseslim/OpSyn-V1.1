@@ -1,137 +1,83 @@
 // ============================================================
-// OPSYN UI — Card  (Stage 3 rebuild)
-// Design tokens: --color-surface, --color-border, --radius-card, --shadow-panel
-// Variants: default, elevated, inset, ghost
-// Optional: header/body/footer slot props, skeleton pulse, clickable hover lift
+// OPSYN UI — Card (a.k.a. Panel)  (Phase 4)
+// Flat solid surface: 1px border, 6px radius, no hover lift.
+// Same props as before. A clickable card is now a real control: focusable,
+// Enter/Space activate it, and it is announced as a button.
 // ============================================================
 
 import React from 'react';
+import styles from './Card.module.css';
 
 export type CardVariant = 'default' | 'elevated' | 'inset' | 'ghost';
 
 export interface CardProps {
-  variant?:    CardVariant;
-  accent?:     boolean;
+  variant?:     CardVariant;
+  accent?:      boolean;
   accentColor?: string;
-  padding?:    number | string;
-  header?:     React.ReactNode;
-  footer?:     React.ReactNode;
-  children:    React.ReactNode;
-  skeleton?:   boolean;
-  style?:      React.CSSProperties;
-  onClick?:    () => void;
+  padding?:     number | string;
+  header?:      React.ReactNode;
+  footer?:      React.ReactNode;
+  children:     React.ReactNode;
+  skeleton?:    boolean;
+  style?:       React.CSSProperties;
+  onClick?:     () => void;
+  /** Accessible name when the whole card is clickable */
+  'aria-label'?: string;
+  className?:   string;
 }
 
-const BG: Record<CardVariant, string> = {
-  default:  'white',
-  elevated: 'white',
-  inset:    'var(--color-surface-2)',
-  ghost:    'transparent',
-};
+const px = (p: number | string) => (typeof p === 'number' ? `${p}px` : p);
 
-const BORDER: Record<CardVariant, string> = {
-  default:  '1px solid var(--color-border)',
-  elevated: '1px solid var(--color-border)',
-  inset:    '1px solid var(--color-border)',
-  ghost:    'none',
-};
-
-const SHADOW: Record<CardVariant, string> = {
-  default:  'none',
-  elevated: 'var(--shadow-panel)',
-  inset:    'none',
-  ghost:    'none',
-};
-
-// ══ CARD ══════════════════════════════════════════════════════
 export function Card({
-  variant      = 'default',
-  accent       = false,
-  accentColor  = 'var(--color-teal)',
-  padding      = 16,
+  variant     = 'default',
+  accent      = false,
+  accentColor = 'var(--accent-text)',
+  padding     = 16,
   header,
   footer,
   children,
-  skeleton     = false,
+  skeleton    = false,
   style,
   onClick,
+  className,
+  ...aria
 }: CardProps) {
-  const isClickable = Boolean(onClick);
+  const classes = [
+    styles.card,
+    variant !== 'default' && styles[variant],
+    onClick && styles.clickable,
+    className,
+  ].filter(Boolean).join(' ');
 
   if (skeleton) {
     return (
-      <div style={{
-        background:   BG[variant],
-        border:       BORDER[variant],
-        borderRadius: 'var(--radius-card)',
-        padding,
-        boxShadow:    SHADOW[variant],
-        ...style,
-      }}>
-        <SkeletonBlock height={16} width="60%" style={{ marginBottom: 12 }} />
-        <SkeletonBlock height={12} width="100%" style={{ marginBottom: 8 }} />
-        <SkeletonBlock height={12} width="80%" />
+      <div className={classes} style={{ padding: px(padding), ...style }} aria-busy="true">
+        <div className={styles.skeletonLine} style={{ height: 16, width: '60%', marginBottom: 12 }} />
+        <div className={styles.skeletonLine} style={{ height: 12, marginBottom: 8 }} />
+        <div className={styles.skeletonLine} style={{ height: 12, width: '80%' }} />
       </div>
     );
   }
 
+  const interactive = onClick
+    ? {
+        role: 'button' as const,
+        tabIndex: 0,
+        onClick,
+        onKeyDown: (e: React.KeyboardEvent) => {
+          if (e.target !== e.currentTarget) return;  // keys inside nested controls stay theirs
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); }
+        },
+      }
+    : {};
+
   return (
-    <div
-      onClick={onClick}
-      style={{
-        position:     'relative',
-        overflow:     'hidden',
-        background:   BG[variant],
-        border:       BORDER[variant],
-        borderRadius: 'var(--radius-card)',
-        boxShadow:    SHADOW[variant],
-        cursor:       isClickable ? 'pointer' : undefined,
-        transition:   isClickable ? 'transform 150ms, box-shadow 150ms' : undefined,
-        ...style,
-      }}
-      onMouseEnter={isClickable ? e => {
-        (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
-        (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-panel)';
-      } : undefined}
-      onMouseLeave={isClickable ? e => {
-        (e.currentTarget as HTMLElement).style.transform = '';
-        (e.currentTarget as HTMLElement).style.boxShadow = SHADOW[variant];
-      } : undefined}
-    >
-      {/* Teal top accent line */}
-      {accent && (
-        <div style={{
-          position:   'absolute',
-          top:        0,
-          left:       0,
-          right:      0,
-          height:     2,
-          background: accentColor,
-        }} />
-      )}
-
-      {/* Header slot */}
-      {header && (
-        <div style={{
-          padding:      `${typeof padding === 'number' ? padding : 16}px`,
-          paddingBottom: 0,
-        }}>
-          {header}
-        </div>
-      )}
-
-      {/* Body */}
-      <div style={{ padding }}>
-        {children}
-      </div>
-
-      {/* Footer slot */}
+    <div className={classes} style={style} {...interactive} {...aria}>
+      {accent && <div className={styles.accent} style={{ background: accentColor }} aria-hidden="true" />}
+      {header && <div style={{ padding: px(padding), paddingBottom: 0 }}>{header}</div>}
+      <div style={{ padding: px(padding) }}>{children}</div>
       {footer && (
-        <div style={{
-          padding:     `${typeof padding === 'number' ? Math.round(Number(padding) * 0.75) : 12}px ${typeof padding === 'number' ? padding : 16}px`,
-          borderTop:   '1px solid var(--color-border)',
-          background:  'var(--color-surface-2)',
-        }}>
+        <div className={styles.footer} style={{ padding: `${typeof padding === 'number' ? Math.round(padding * 0.75) : 12}px ${px(padding)}` }}>
           {footer}
         </div>
       )}
@@ -139,17 +85,5 @@ export function Card({
   );
 }
 
-// ── Internal skeleton block ─────────────────────────────────────
-function SkeletonBlock({ height, width, style }: { height: number; width?: string; style?: React.CSSProperties }) {
-  return (
-    <div style={{
-      height,
-      width:        width ?? '100%',
-      borderRadius: 4,
-      background:   'linear-gradient(90deg, var(--color-surface-2) 25%, var(--color-border) 50%, var(--color-surface-2) 75%)',
-      backgroundSize: '200% 100%',
-      animation:    'shimmer 1.5s ease-in-out infinite',
-      ...style,
-    }} />
-  );
-}
+/** The design system's name for a Card */
+export const Panel = Card;

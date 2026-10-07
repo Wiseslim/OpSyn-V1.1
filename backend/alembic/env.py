@@ -38,6 +38,13 @@ from app.modules.infrastructure.models import (
     Cabinet, OLT, SplitterBox,
     InfraUploadStaging, InfraAuditLog,
 )
+from app.modules.fttx_designer.models import (
+    FttxDesignRun, FttxDesignRunLayer, FttxDesignRunOutput,
+)
+from app.modules.network.models import NetAsset, NetCable, NetConnection, NetFiber, NetPort
+from app.modules.design.models import (
+    Design, DesignInput, DesignInputUpload, DesignOperation, DesignValidationIssue, DesignVersion,
+)
 
 # Legacy form system (renamed tables — kept for backward compatibility)
 from app.modules.forms.models import (
@@ -59,6 +66,7 @@ from app.modules.form_builder.models import (
     FieldDefinition as FBFieldDefinition,
     FormAssociation,
     FormSubmission as FBFormSubmission,
+    SchemaMigrationHistory,
 )
 
 # ── Alembic config ────────────────────────────────────────────

@@ -15,6 +15,8 @@ import { projectsApi, settingsApi } from '../../api/index';
 import { useUIStore } from '../../store/ui.store';
 import type { ProjectPipelineResponse } from '@shared';
 import type { ApiError } from '../../api/client';
+import { GlassModal, GlassSelect } from '../../components/glass';
+import { ProjectDesigns } from '../../features/network-map/design/ProjectDesigns';
 
 function useToast() {
   const { addToast } = useUIStore();
@@ -57,7 +59,7 @@ export default function ProjectDetailPage() {
   const qc       = useQueryClient();
   const [showAdvance,        setShowAdvance]        = useState(false);
   const [showPushBack,       setShowPushBack]       = useState(false);
-  const [activeTab,          setActiveTab]          = useState<'timeline' | 'pipeline'>('timeline');
+  const [activeTab,          setActiveTab]          = useState<'timeline' | 'pipeline' | 'designs'>('timeline');
   const [showStartPipeline,  setShowStartPipeline]  = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
 
@@ -130,7 +132,7 @@ export default function ProjectDetailPage() {
       <div style={{
         padding: '16px 24px 12px',
         borderBottom: '1px solid var(--color-border)',
-        background: 'white',
+        background: 'var(--surface)',
         flexShrink: 0,
       }}>
         {/* Back link */}
@@ -193,7 +195,7 @@ export default function ProjectDetailPage() {
                 onClick={() => setShowStartPipeline(true)}
                 style={{
                   padding: '6px 14px', borderRadius: 7, border: 'none',
-                  background: 'var(--color-teal)', color: 'white', fontSize: 11, fontWeight: 700,
+                  background: 'var(--brand)', color: 'var(--brand-contrast)', fontSize: 11, fontWeight: 700,
                   cursor: 'pointer', fontFamily: 'var(--font-body)',
                 }}
               >
@@ -217,7 +219,7 @@ export default function ProjectDetailPage() {
                 onClick={() => setShowAdvance(true)}
                 style={{
                   padding: '6px 14px', borderRadius: 7, border: 'none',
-                  background: 'var(--color-teal)', color: 'white', fontSize: 11, fontWeight: 700,
+                  background: 'var(--brand)', color: 'var(--brand-contrast)', fontSize: 11, fontWeight: 700,
                   cursor: 'pointer', fontFamily: 'var(--font-body)',
                 }}
               >
@@ -230,7 +232,7 @@ export default function ProjectDetailPage() {
 
       {/* ── Pipeline Stage Rail ── */}
       {allStages.length > 0 && (
-        <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--color-border)', flexShrink: 0, background: 'white' }}>
+        <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--color-border)', flexShrink: 0, background: 'var(--surface)' }}>
           <PipelineStageRail
             stages={allStages}
             currentStageId={currentStage?.id}
@@ -241,8 +243,8 @@ export default function ProjectDetailPage() {
       )}
 
       {/* ── Tabs ── */}
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', padding: '0 24px', background: 'white', flexShrink: 0 }}>
-        {(['timeline', 'pipeline'] as const).map(tab => (
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', padding: '0 24px', background: 'var(--surface)', flexShrink: 0 }}>
+        {(['timeline', 'pipeline', 'designs'] as const).map(tab => (
           <div
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -253,7 +255,7 @@ export default function ProjectDetailPage() {
               cursor: 'pointer', marginBottom: -1, textTransform: 'capitalize',
             }}
           >
-            {tab === 'pipeline' ? 'Stage Comments' : 'Timeline'}
+            {tab === 'pipeline' ? 'Stage Comments' : tab === 'designs' ? 'Network designs' : 'Timeline'}
           </div>
         ))}
       </div>
@@ -266,6 +268,7 @@ export default function ProjectDetailPage() {
           {activeTab === 'timeline' && (
             <ActivityTimeline entityType="project" entityId={id!} canComment />
           )}
+          {activeTab === 'designs' && <ProjectDesigns projectId={id!} />}
           {activeTab === 'pipeline' && currentStage && (
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 12 }}>
@@ -281,7 +284,7 @@ export default function ProjectDetailPage() {
         {/* Sidebar */}
         <div style={{
           width: 240, flexShrink: 0, borderLeft: '1px solid var(--color-border)',
-          padding: 20, overflow: 'auto', background: 'white',
+          padding: 20, overflow: 'auto', background: 'var(--surface)',
         }}>
           <SidebarField label="Department" value={project.department_id ? '—' : '—'} />
           {project.due_date && (
@@ -345,8 +348,7 @@ export default function ProjectDetailPage() {
 
       {/* Start Pipeline Modal */}
       {showStartPipeline && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: 'white', borderRadius: 14, padding: 28, width: 420, maxWidth: '95vw', border: '1px solid var(--color-border)' }}>
+        <GlassModal open onClose={() => setShowStartPipeline(false)} ariaLabel="Start pipeline" size="sm">
             <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--color-text-primary)', marginBottom: 16 }}>Start Pipeline</div>
             <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 16 }}>
               Select a pipeline template to apply to this project.
@@ -355,20 +357,7 @@ export default function ProjectDetailPage() {
               <label style={{ display: 'block', fontSize: 9, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.1em' }}>
                 Pipeline Template
               </label>
-              <select
-                value={selectedTemplateId}
-                onChange={e => setSelectedTemplateId(e.target.value)}
-                style={{
-                  width: '100%', padding: '9px 12px', borderRadius: 8,
-                  border: '1px solid var(--color-border)', background: 'var(--color-surface)',
-                  color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)', fontSize: 12, outline: 'none',
-                }}
-              >
-                <option value="">— Select a template —</option>
-                {(templates as any[]).map((t: any) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
+              <GlassSelect value={String(selectedTemplateId)} onChange={v => setSelectedTemplateId(v)} options={[...(templates as any[]).map((t: any) => ({ value: String(t.id), label: String(t.name) }))]} placeholder={'— Select a template —'} ariaLabel="Pipeline template" />
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button
@@ -390,8 +379,7 @@ export default function ProjectDetailPage() {
                 {startPipelineMutation.isPending ? 'Starting…' : 'Start Pipeline'}
               </button>
             </div>
-          </div>
-        </div>
+          </GlassModal>
       )}
     </div>
   );

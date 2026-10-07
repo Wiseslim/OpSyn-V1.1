@@ -16,6 +16,13 @@ import {
 import { formBuilderApi, type ContextSchema } from '../../api/form-builder.api';
 import FormRenderer from '../../components/form-builder/FormRenderer';
 import type { ApiError } from '../../api/client';
+import { useUrlTab } from '../../hooks/useUrlTab';
+import { NetworkRegister } from '../../features/network-map/NetworkRegister';
+import { GlassModal } from '../../components/glass';
+import { Map as MapIcon, Plus, Search, Upload } from 'lucide-react';
+import { Page, PageHeader, PageStats } from '../../components/layout/Page';
+import { Tabs } from '../../components/ui/Tabs';
+import s from './Infrastructure.module.css';
 
 const InfraMapView = lazy(() => import('./InfraMapView'));
 
@@ -30,7 +37,7 @@ function useToast() {
   };
 }
 
-type TabKey = 'sites' | 'nodes' | 'routes' | 'olts' | 'cabinets' | 'splitters' | 'map';
+type TabKey = 'network' | 'sites' | 'nodes' | 'routes' | 'olts' | 'cabinets' | 'splitters' | 'map';
 
 const statusVariant = (s: string) =>
   s === 'active' ? 'resolved' : s === 'maintenance' ? 'warning' : 'critical';
@@ -91,26 +98,7 @@ function InfraFormsModal({
   const schemas: ContextSchema[] = contextQ.data ?? [];
 
   return (
-    <div
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 1000,
-        background: 'rgba(0,0,0,0.50)',
-        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-        paddingTop: 60, paddingBottom: 40, overflowY: 'auto',
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          width: '100%', maxWidth: 680,
-          margin: '0 24px',
-          background: 'var(--color-surface)',
-          borderRadius: 12, border: '1px solid var(--color-border)',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.30)',
-          display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        }}
-      >
+    <GlassModal open onClose={onClose} ariaLabel="Infrastructure forms" size="lg" hideClose>
         {/* Header */}
         <div style={{
           display: 'flex', alignItems: 'center',
@@ -202,13 +190,15 @@ function InfraFormsModal({
             </>
           )}
         </div>
-      </div>
-    </div>
+      </GlassModal>
   );
 }
 
+const TAB_KEYS: readonly TabKey[] = ['network', 'sites', 'nodes', 'routes', 'olts', 'cabinets', 'splitters', 'map'];
+
 export default function InfrastructurePage() {
-  const [tab, setTab]               = useState<TabKey>('sites');
+  // In the URL (?tab=map) so "Network map" in the navigation opens the map directly
+  const [tab, setTab]               = useUrlTab<TabKey>(TAB_KEYS, 'network');
   const [search, setSearch]         = useState('');
   const [siteModal, setSiteModal]   = useState(false);
   const [nodeModal, setNodeModal]   = useState(false);
@@ -524,152 +514,78 @@ export default function InfrastructurePage() {
     },
   ];
 
-  return (
-    <div style={{ overflow: 'auto', flex: 1, background: 'var(--color-surface)' }}>
+  const resultCount =
+    tab === 'sites' ? sitesFiltered.length : tab === 'nodes' ? nodesFiltered.length
+    : tab === 'routes' ? routesFiltered.length : tab === 'olts' ? oltsFiltered.length
+    : tab === 'cabinets' ? cabinetsFiltered.length : splittersFiltered.length;
+  const addAction =
+    tab === 'sites' ? { label: 'Add site', onClick: () => setSiteModal(true) }
+    : tab === 'nodes' ? { label: 'Add node', onClick: () => setNodeModal(true) }
+    : tab === 'routes' ? { label: 'Add route', onClick: () => setRouteModal(true) }
+    : null;
 
-      {/* Stat strip */}
-      <div style={{
-        display:      'flex',
-        alignItems:   'center',
-        background:   'white',
-        borderBottom: '1px solid var(--color-border)',
-        padding:      '8px 24px',
-        fontSize:      11,
-        gap:           28,
-        flexWrap:     'wrap',
-      }}>
-        {[
-          { val: summ?.active_sites  ?? '…', label: 'Active Sites',   color: 'var(--color-teal)' },
-          { val: summ?.active_nodes  ?? '…', label: 'Active Nodes',   color: 'var(--color-green)' },
-          { val: summ?.olt_count     ?? '…', label: 'OLTs',           color: 'var(--color-indigo)' },
-          { val: summ?.active_routes ?? '…', label: 'Active Routes',  color: 'var(--color-amber)' },
-          {
-            val:   summ?.total_fiber_km != null ? `${Number(summ.total_fiber_km).toFixed(1)} km` : '…',
-            label: 'Total Fiber',
-            color: 'var(--color-text-primary)',
-          },
-        ].map(item => (
-          <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 14, color: item.color }}>
-              {item.val}
+  return (
+    <Page width={tab === 'map' ? 'full' : 'default'}>
+      <PageHeader
+        title={tab === 'map' ? 'Network map' : 'Infrastructure'}
+        lede={tab === 'map' ? 'Every mapped asset, fiber route and open incident' : 'FTTx asset registry — sites, nodes, fiber routes and field assets'}
+        primary={addAction ? (
+          <Button variant="primary" size="sm" leftIcon={<Plus size={16} aria-hidden="true" />} onClick={addAction.onClick}>{addAction.label}</Button>
+        ) : undefined}
+        secondary={[
+          { id: 'upload', label: 'Bulk upload', icon: <Upload size={16} aria-hidden="true" />, onSelect: () => navigate('/infrastructure/upload') },
+        ]}
+      />
+
+      {tab !== 'map' && tab !== 'network' && (
+        <PageStats items={[
+          { label: 'active sites', value: summ?.active_sites ?? '–' },
+          { label: 'active nodes', value: summ?.active_nodes ?? '–' },
+          { label: 'OLTs', value: summ?.olt_count ?? '–' },
+          { label: 'active routes', value: summ?.active_routes ?? '–' },
+          { label: 'of fiber', value: summ?.total_fiber_km != null ? `${Number(summ.total_fiber_km).toFixed(1)} km` : '–' },
+        ]} />
+      )}
+
+      <div className={s.toolbar}>
+        <Tabs
+          label="Asset types"
+          value={tab}
+          onChange={setTab}
+          idPrefix="infra"
+          className={s.tabs}
+          items={[
+            { value: 'network', label: 'Network' },
+            { value: 'sites', label: 'Sites' },
+            { value: 'nodes', label: 'Nodes' },
+            { value: 'routes', label: 'Routes' },
+            { value: 'olts', label: 'OLTs' },
+            { value: 'cabinets', label: 'Cabinets' },
+            { value: 'splitters', label: 'Splitters' },
+            { value: 'map', label: 'Map', icon: <MapIcon size={14} /> },
+          ]}
+        />
+        {tab !== 'map' && tab !== 'network' && (
+          <div className={s.search}>
+            <Input
+              id="infra-search"
+              value={search}
+              onChange={setSearch}
+              placeholder="Search by name, ID or coordinates"
+              prefix={<Search size={14} aria-hidden="true" />}
+              autoComplete="off"
+              style={{ marginBottom: 0 }}
+            />
+            <span className="sr-only" aria-live="polite">
+              {search ? `${resultCount} result${resultCount === 1 ? '' : 's'}` : ''}
             </span>
-            <span style={{ color: 'var(--color-text-muted)' }}>{item.label}</span>
           </div>
-        ))}
+        )}
       </div>
 
-      <div style={{ padding: '20px 24px' }}>
-
-        {/* Page header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
-          <div>
-            <h1 style={{
-              fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800,
-              color: 'var(--color-text-primary)', letterSpacing: '-.03em', margin: 0,
-            }}>
-              Network Infrastructure
-            </h1>
-            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, marginBottom: 0 }}>
-              FTTx asset registry · sites, nodes &amp; fiber routes
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button variant="secondary" size="sm" onClick={() => navigate('/infrastructure/upload')}>⬆ Bulk Upload</Button>
-            <Button variant="danger"    size="sm" onClick={() => navigate('/infrastructure/deletion')}>⬇ Bulk Delete</Button>
-            <Button variant="ghost"     size="sm" onClick={() => navigate('/infrastructure/audit')}>Audit Log</Button>
-            {tab === 'sites'  && <Button variant="primary" size="sm" onClick={() => setSiteModal(true)}>+ Add Site</Button>}
-            {tab === 'nodes'  && <Button variant="primary" size="sm" onClick={() => setNodeModal(true)}>+ Add Node</Button>}
-            {tab === 'routes' && <Button variant="primary" size="sm" onClick={() => setRouteModal(true)}>+ Add Route</Button>}
-          </div>
-        </div>
-
-        {/* Tab bar + search row */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12 }}>
-          <div style={{
-            display:      'flex',
-            gap:          2,
-            background:   'white',
-            borderRadius: 'var(--radius-card)',
-            padding:      3,
-            border:       '1px solid var(--color-border)',
-          }}>
-            {(['sites', 'nodes', 'routes', 'olts', 'cabinets', 'splitters', 'map'] as const).map(t => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                style={{
-                  padding:      '6px 16px',
-                  borderRadius: 8,
-                  border:       'none',
-                  cursor:       'pointer',
-                  fontFamily:   'var(--font-display)',
-                  fontSize:     12,
-                  fontWeight:   600,
-                  transition:   'all .15s',
-                  background:   tab === t ? 'var(--color-teal)' : 'transparent',
-                  color:        tab === t ? 'var(--color-navy)' : 'var(--color-text-muted)',
-                }}
-              >
-                {t === 'map' ? 'GIS Map' : t === 'olts' ? 'OLTs' : t === 'cabinets' ? 'Cabinets' : t === 'splitters' ? 'Splitters' : t.charAt(0).toUpperCase() + t.slice(1)}
-              </button>
-            ))}
-          </div>
-
-          {tab !== 'map' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ position: 'relative' }}>
-                <span style={{
-                  position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)',
-                  color: 'var(--color-text-muted)', fontSize: 13, pointerEvents: 'none', lineHeight: 1,
-                }}>⌕</span>
-                <input
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Search by name, ID or coordinates…"
-                  style={{
-                    paddingLeft:   30,
-                    paddingRight:  search ? 30 : 12,
-                    paddingTop:    7,
-                    paddingBottom: 7,
-                    width:         280,
-                    border:        '1px solid var(--color-border)',
-                    borderRadius:  'var(--radius-card)',
-                    fontFamily:    'var(--font-body)',
-                    fontSize:      12,
-                    color:         'var(--color-text-primary)',
-                    background:    'white',
-                    outline:       'none',
-                  }}
-                />
-                {search && (
-                  <button
-                    onClick={() => setSearch('')}
-                    style={{
-                      position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-                      background: 'none', border: 'none', cursor: 'pointer',
-                      color: 'var(--color-text-muted)', fontSize: 14, lineHeight: 1, padding: 0,
-                    }}
-                    aria-label="Clear search"
-                  >×</button>
-                )}
-              </div>
-              {search && (
-                <span style={{ fontSize: 11, color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
-                  {tab === 'sites'    ? sitesFiltered.length
-                   : tab === 'nodes'  ? nodesFiltered.length
-                   : tab === 'routes' ? routesFiltered.length
-                   : tab === 'olts'   ? oltsFiltered.length
-                   : tab === 'cabinets' ? cabinetsFiltered.length
-                   : splittersFiltered.length} result{(
-                     tab === 'sites' ? sitesFiltered.length : tab === 'nodes' ? nodesFiltered.length :
-                     tab === 'routes' ? routesFiltered.length : tab === 'olts' ? oltsFiltered.length :
-                     tab === 'cabinets' ? cabinetsFiltered.length : splittersFiltered.length
-                   ) !== 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+      <div role="tabpanel" id="infra-panel" aria-labelledby={`infra-tab-${tab}`}>
+        {/* The unified network (net_assets / net_cables), Network GIS Phase 2 */}
+        {tab === 'network' && <NetworkRegister />}
 
         {/* Sites table */}
         {tab === 'sites' && (
@@ -747,15 +663,14 @@ export default function InfrastructurePage() {
 
         {/* Map */}
         {tab === 'map' && (
-          <div style={{ marginLeft: -24, marginRight: -24, marginBottom: -20, height: 'calc(100vh - 220px)', minHeight: 500 }}>
-            <Suspense fallback={
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--color-text-muted)', fontSize: 13 }}>
-                Loading map…
-              </div>
-            }>
-              <InfraMapView />
-            </Suspense>
-          </div>
+          // The workspace sizes itself to the viewport (InfraMap.module.css)
+          <Suspense fallback={
+            <div role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 460, color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
+              Loading map…
+            </div>
+          }>
+            <InfraMapView />
+          </Suspense>
         )}
       </div>
 
@@ -833,6 +748,6 @@ export default function InfrastructurePage() {
           onClose={() => setInfraFormsItem(null)}
         />
       )}
-    </div>
+    </Page>
   );
 }

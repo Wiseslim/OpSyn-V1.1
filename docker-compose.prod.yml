@@ -11,6 +11,13 @@
 # ============================================================
 
 services:
+  # ── Alembic migrations ──────────────────────────────────────
+  migrate:
+    image: ghcr.io/slimtech/opsyn/opsyn-backend:latest
+    volumes: []
+    environment:
+      ENVIRONMENT: "production"
+
   # ── Nginx reverse proxy (HTTPS + rate limiting) ────────────
   nginx:
     image: nginx:alpine

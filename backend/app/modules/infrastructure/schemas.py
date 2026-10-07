@@ -90,5 +90,11 @@ class MatchResult(BaseModel):
 class DeletionResult(BaseModel):
     session_id: uuid.UUID
     deleted_rows: int
+    """Rows the approver named in the deletion file and actually removed."""
+    cascaded_rows: int = 0
+    """Dependants removed with them: splitters under a deleted cabinet, or
+    below a deleted First-Level splitter. These were never named in the file,
+    so the UI must show them separately rather than folding them into
+    deleted_rows -- otherwise the number no longer matches the spreadsheet."""
     status: str                          # executed | failed
     error: str | None = None

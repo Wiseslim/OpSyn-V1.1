@@ -12,6 +12,7 @@ import {
 import { customersApi } from '../../api/customers.api';
 import { useUIStore } from '../../store/ui.store';
 import { useQueryClient } from '@tanstack/react-query';
+import { GlassModal, GlassSelect } from '../../components/glass';
 
 function useToast() {
   const { addToast } = useUIStore();
@@ -109,9 +110,7 @@ function FieldForm({
         </div>
         <div>
           <label style={labelStyle}>Field Type</label>
-          <select style={inputStyle} value={f.fieldType} onChange={e => set('fieldType', e.target.value)}>
-            {FIELD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
+          <GlassSelect value={String(f.fieldType)} onChange={v => set('fieldType', v)} options={[...FIELD_TYPES.map((t) => ({ value: String(t), label: String(t) }))]} ariaLabel="Field type" />
         </div>
         <div>
           <label style={labelStyle}>Stage Order (1–5)</label>
@@ -303,7 +302,7 @@ function SchemaPanel({ schemaId }: { schemaId: string }) {
 
       {/* Add field form */}
       {addingField && (
-        <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: 12,
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--color-border)', borderRadius: 12,
           padding: 20, marginBottom: 20 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 16 }}>
             New Field Definition
@@ -338,14 +337,14 @@ function SchemaPanel({ schemaId }: { schemaId: string }) {
                 {stageFields.map((f: any) => (
                   <div key={f.id}>
                     {editingField?.id === f.id ? (
-                      <div style={{ background: 'white', border: '1px solid #0ea5e9',
+                      <div style={{ background: 'var(--surface)', border: '1px solid #0ea5e9',
                         borderRadius: 10, padding: 16 }}>
                         <FieldForm initial={fieldToFormState(f)} onSave={handleUpdate}
                           onCancel={() => setEditingField(null)}
                           isPending={updateField.isPending} />
                       </div>
                     ) : (
-                      <div style={{ background: 'white', border: '1px solid var(--color-border)',
+                      <div style={{ background: 'var(--surface)', border: '1px solid var(--color-border)',
                         borderRadius: 10, padding: '12px 14px',
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -426,10 +425,7 @@ function CreateSchemaModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 200,
-      display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: 'white', borderRadius: 14, padding: 28, width: 400,
-        boxShadow: '0 8px 40px rgba(0,0,0,.18)' }}>
+    <GlassModal open onClose={onClose} ariaLabel="Create form schema" size="sm">
         <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--color-text-primary)', marginBottom: 20 }}>
           New Field Schema
         </div>
@@ -469,8 +465,7 @@ function CreateSchemaModal({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </GlassModal>
   );
 }
 
@@ -487,11 +482,12 @@ export default function CustomerFormBuilderPage() {
 
   return (
     <div style={{ display: 'flex', flex: 1, overflow: 'hidden', background: 'var(--color-surface)' }}>
+      <h1 className="sr-only">Customer forms</h1>
       {showCreateModal && <CreateSchemaModal onClose={() => setShowCreate(false)} />}
 
       {/* Left: schema list */}
       <div style={{ width: 240, borderRight: '1px solid var(--color-border)', display: 'flex',
-        flexDirection: 'column', overflow: 'hidden', background: 'white' }}>
+        flexDirection: 'column', overflow: 'hidden', background: 'var(--surface)' }}>
         <div style={{ padding: '16px 14px 12px', display: 'flex', justifyContent: 'space-between',
           alignItems: 'center', borderBottom: '1px solid var(--color-border)' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)',

@@ -12,6 +12,7 @@ import { WorkflowCanvas } from './components/WorkflowCanvas';
 import { EdgeConfigPanel } from './components/EdgeConfigPanel';
 import type { CreateWorkflowPayload } from '../../types/workflow.types';
 import { usePermissions } from '../../hooks/usePermissions';
+import { GlassModal } from '../../components/glass';
 
 export default function WorkflowBuilderPage() {
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
@@ -74,6 +75,7 @@ export default function WorkflowBuilderPage() {
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+      <h1 className="sr-only">Workflow builder</h1>
 
       {/* ── Left panel: workflow list ── */}
       <aside style={{
@@ -324,19 +326,7 @@ export default function WorkflowBuilderPage() {
 
       {/* ── Create modal ── */}
       {showCreate && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 200,
-        }} onClick={() => setShowCreate(false)}>
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              width: 380, background: 'var(--bg2)',
-              border: '1px solid var(--wire)', borderRadius: 12,
-              padding: 24, display: 'flex', flexDirection: 'column', gap: 14,
-            }}
-          >
+        <GlassModal open onClose={() => setShowCreate(false)} ariaLabel="Create workflow" size="sm">
             <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--chalk)' }}>
               New Workflow
             </div>
@@ -411,8 +401,7 @@ export default function WorkflowBuilderPage() {
                 {createWorkflow.isPending ? 'Creating…' : 'Create'}
               </button>
             </div>
-          </div>
-        </div>
+          </GlassModal>
       )}
     </div>
   );

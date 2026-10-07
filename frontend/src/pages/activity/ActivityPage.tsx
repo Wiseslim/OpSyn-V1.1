@@ -6,6 +6,8 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { activityApi } from '../../api/index';
 import { Pagination } from '../../components/ui';
+import { GlassSelect } from '../../components/glass';
+import { PageHeader } from '../../components/layout/Page';
 
 const ENTITY_COLORS: Record<string, string> = {
   task:        'var(--color-teal)',
@@ -17,7 +19,7 @@ const ENTITY_COLORS: Record<string, string> = {
 };
 
 const ENTITY_BG: Record<string, string> = {
-  task:        'rgba(0,194,168,.1)',
+  task:        'rgba(0,194,168,.06)',
   project:     'rgba(79,70,229,.1)',
   outage:      'rgba(220,38,38,.1)',
   staff:       'rgba(22,163,74,.1)',
@@ -63,18 +65,9 @@ export default function ActivityPage() {
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: 'var(--color-surface)' }}>
 
       {/* Live indicator header */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '12px 24px',
-        borderBottom: '1px solid var(--color-border)',
-        background: 'white',
-        flexShrink: 0,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 800, color: 'var(--color-text-primary)', letterSpacing: '-.03em', margin: 0 }}>
-            Activity Feed
-          </h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+      <PageHeader
+        title="Activity Feed"
+        meta={<><div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <span style={{
               width: 7, height: 7, borderRadius: '50%',
               background: 'var(--color-green)',
@@ -82,25 +75,9 @@ export default function ActivityPage() {
               display: 'inline-block',
             }} />
             <span style={{ fontSize: 10, color: 'var(--color-green)', fontWeight: 600, letterSpacing: '.04em' }}>LIVE</span>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{total} events</span>
-          <select
-            value={entityFilter}
-            onChange={e => { setEntityFilter(e.target.value); setPage(1); }}
-            style={{
-              background: 'white', border: '1px solid var(--color-border)',
-              borderRadius: 8, color: 'var(--color-text-primary)',
-              padding: '6px 10px', fontFamily: 'var(--font-body)', fontSize: 11,
-              cursor: 'pointer', outline: 'none',
-            }}
-          >
-            {ENTITY_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </div>
-      </div>
+          </div></>}
+        primary={<><span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{total} events</span><GlassSelect value={String(entityFilter)} onChange={v => { setEntityFilter(v); setPage(1); }} options={[...ENTITY_OPTS.map((o) => ({ value: String(o.value), label: String(o.label) }))]} ariaLabel="Filter by entity type" compact /></>}
+      />
 
       {/* Timeline list */}
       <div style={{ overflow: 'auto', flex: 1, padding: '16px 24px' }}>

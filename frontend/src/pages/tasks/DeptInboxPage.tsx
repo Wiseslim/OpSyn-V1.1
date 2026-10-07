@@ -11,6 +11,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { useUIStore } from '../../store/ui.store';
 import { Button, Badge, Modal, Select } from '../../components/ui';
 import type { ApiError } from '../../api/client';
+import { PageHeader } from '../../components/layout/Page';
 
 const toArr = (d: any): any[] => Array.isArray(d) ? d : (d?.items ?? []);
 
@@ -122,29 +123,14 @@ export default function DeptInboxPage() {
       <div style={{
         padding: '14px 24px',
         borderBottom: '1px solid var(--color-border)',
-        background: 'white',
+        background: 'var(--surface)',
         flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <h1 style={{
-              fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 800,
-              color: 'var(--color-text-primary)', letterSpacing: '-.03em', margin: 0,
-            }}>
-              Department Inbox
-            </h1>
-            <p style={{ fontSize: 11, color: 'var(--color-text-muted)', margin: '3px 0 0' }}>
-              Unassigned external tasks routed to your department
-            </p>
-          </div>
-
-          {/* Quick stats */}
-          <div style={{ display: 'flex', gap: 20 }}>
-            <StatChip label="Pending" value={stats.total} color="var(--color-teal)" />
-            <StatChip label="Overdue" value={stats.overdue} color="var(--color-red)" />
-            <StatChip label="Oldest (days)" value={stats.oldestAge} color="var(--color-amber)" />
-          </div>
-        </div>
+        <PageHeader
+        title="Department Inbox"
+        lede="Unassigned external tasks routed to your department"
+        primary={<><StatChip label="Pending" value={stats.total} color="var(--color-teal)" /><StatChip label="Overdue" value={stats.overdue} color="var(--color-red)" /><StatChip label="Oldest (days)" value={stats.oldestAge} color="var(--color-amber)" /></>}
+      />
       </div>
 
       {/* Task list */}
@@ -166,7 +152,7 @@ export default function DeptInboxPage() {
                 <div
                   key={t.id}
                   style={{
-                    background: 'white',
+                    background: 'var(--surface)',
                     border: '1px solid var(--color-border)',
                     borderLeft: `4px solid ${isOverdue ? 'var(--color-red)' : 'var(--color-teal)'}`,
                     borderRadius: 'var(--radius-card)',
@@ -293,7 +279,7 @@ export default function DeptInboxPage() {
                 border: '1px solid var(--color-border)', borderRadius: 6,
                 padding: '8px 10px', fontSize: 12, resize: 'vertical',
                 fontFamily: 'var(--font)', color: 'var(--color-text-primary)',
-                background: 'white', outline: 'none',
+                background: 'var(--surface)', outline: 'none',
               }}
             />
           </div>

@@ -7,9 +7,13 @@ export { Button }        from './Button';
 export type { ButtonProps, ButtonVariant, ButtonSize } from './Button';
 
 export { Badge }         from './Badge';
-export type { BadgeProps, BadgeVariant, BadgeSize } from './Badge';
+export type { BadgeProps, BadgeVariant, BadgeSize, BadgeTone } from './Badge';
 
-export { Card }          from './Card';
+// Alarm severity (shape + label) and workflow state (dot + label)
+export { StatusBadge, StateBadge } from '../status/StatusBadge';
+export type { StatusBadgeProps, StateBadgeProps } from '../status/StatusBadge';
+
+export { Card, Panel }   from './Card';
 export type { CardProps, CardVariant } from './Card';
 
 export { Modal }         from './Modal';
@@ -22,7 +26,7 @@ export { Select }        from './Select';
 export type { SelectProps, SelectOption } from './Select';
 
 export { DataTable }     from './DataTable';
-export type { DataTableProps, Column } from './DataTable';
+export type { DataTableProps, Column, SortState, SortDir, Density } from './DataTable';
 
 export { Pagination }    from './Pagination';
 export type { PaginationProps } from './Pagination';
@@ -44,3 +48,6 @@ export type { SkeletonProps } from './Skeleton';
 
 export { ToastContainer } from './Toast';
 export { default as ToastContainerDefault } from './Toast';
+
+export { Tabs, TabPanel } from './Tabs';
+export type { TabItem } from './Tabs';

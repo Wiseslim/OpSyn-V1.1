@@ -22,6 +22,7 @@ import NewTaskModal     from './components/NewTaskModal';
 import TaskDetailModal  from './components/TaskDetailModal';
 import QuickTaskPanel   from './components/QuickTaskPanel';
 import type { ApiError } from '../../api/client';
+import { GlassSelect } from '../../components/glass';
 
 type ViewMode = 'kanban' | 'status_board' | 'list' | 'gantt' | 'calendar' | 'pending_approvals';
 
@@ -136,6 +137,7 @@ export default function TasksPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+      <h1 className="sr-only">Tasks</h1>
 
       {/* ── Tab bar ─────────────────────────────────────────── */}
       <div style={{
@@ -143,7 +145,7 @@ export default function TasksPage() {
         borderBottom: '1px solid var(--color-border)',
         flexShrink:   0,
         padding:      '0 20px',
-        background:   'white',
+        background: 'var(--surface)',
         alignItems:   'center',
       }}>
         {TABS.map((tab, i) => {
@@ -187,19 +189,7 @@ export default function TasksPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
           <div style={{ display: 'flex', flexDirection: 'column', minWidth: 190 }}>
             <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', color: 'var(--color-text-muted)', marginBottom: 4 }}>Department</label>
-            <select
-              value={filters.dept_id}
-              onChange={e => setFilters({ dept_id: e.target.value })}
-              style={{
-                width: '100%', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 8,
-                padding: '7px 10px', color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)', fontSize: 11,
-              }}
-            >
-              <option value="">All departments</option>
-              {departments?.map(dept => (
-                <option key={dept.id} value={dept.id}>{dept.name}</option>
-              ))}
-            </select>
+            <GlassSelect value={String(filters.dept_id)} onChange={v => setFilters({ dept_id: v })} options={[...(departments ?? []).map((dept) => ({ value: String(dept.id), label: String(dept.name) }))]} placeholder={'All departments'} ariaLabel="Department" compact />
           </div>
           <button
             onClick={() => setPanelOpen(p => !p)}
@@ -233,7 +223,7 @@ export default function TasksPage() {
               fontWeight:   700,
               cursor:       'pointer',
               fontFamily:   'var(--font)',
-              background:   'var(--color-teal)',
+              background:   'var(--brand)',
               color:        'var(--color-navy)',
               border:       'none',
               boxShadow:    '0 0 16px rgba(0,194,168,.25)',
@@ -318,7 +308,7 @@ export default function TasksPage() {
 
           {/* E.1.2-E.1.3: Pending Approvals */}
           {view === 'pending_approvals' && (
-            <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
+            <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }} tabIndex={0} role="region" aria-label="Pending approvals">
               {pendingLoading ? (
                 <div style={{ textAlign: 'center', padding: 60, color: 'var(--color-text-muted)', fontSize: 12 }}>
                   Loading…
@@ -333,7 +323,7 @@ export default function TasksPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {(pendingApprovals as any[]).map((t: any) => (
                     <div key={t.id} style={{
-                      background: 'white', border: '1px solid var(--color-border)',
+                      background: 'var(--surface)', border: '1px solid var(--color-border)',
                       borderLeft: '4px solid var(--color-teal)',
                       borderRadius: 10, padding: '14px 18px',
                       display: 'flex', alignItems: 'flex-start', gap: 16,
@@ -374,7 +364,7 @@ export default function TasksPage() {
                           style={{
                             padding: '6px 14px', borderRadius: 8, fontSize: 11, fontWeight: 700,
                             cursor: doApprove.isPending ? 'not-allowed' : 'pointer',
-                            border: 'none', background: 'var(--color-teal)', color: 'white',
+                            border: 'none', background: 'var(--brand)', color: 'var(--brand-contrast)',
                           }}>
                           ✓ Approve
                         </button>

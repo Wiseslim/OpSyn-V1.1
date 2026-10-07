@@ -830,6 +830,9 @@ export interface InfraMapSplitter {
   input_ports: number;
   output_ports: number;
   number_customer?: number;
+  /** Topology for path trace — upstream splitter and cabinet (null if not linked) */
+  parent_splitter_id?: string | null;
+  cabinet_id?: string | null;
 }
 
 export interface InfraMapData {
@@ -896,4 +899,737 @@ export interface OutageNotificationRule {
   is_auto: boolean;
   is_active: boolean;
   created_at?: string;
+}
+
+// ── Command Center trends (GET /reports/trends) ────────────────
+export type TrendMetric =
+  | 'outages_opened' | 'outages_resolved' | 'mttr_hours'
+  | 'tasks_created'  | 'tasks_completed'  | 'customers_added'
+  | 'node_availability_pct' | 'port_utilisation_pct';
+
+export type TrendBucket = 'hour' | 'day' | 'week';
+
+export interface TrendPoint {
+  /** Bucket start, ISO 8601 UTC */
+  t: string;
+  /** null = no data for this bucket (ratios/averages); counts are zero-filled */
+  value: number | null;
+}
+
+export interface TrendSeries {
+  metric:   TrendMetric;
+  unit:     'count' | 'hours' | 'percent';
+  bucket:   TrendBucket;
+  days:     number;
+  points:   TrendPoint[];
+  /** false when the window holds no real data — render an empty state, not a flat line */
+  has_data: boolean;
+  /** Present for outages_opened: per-severity counts aligned to `points` */
+  breakdown_by?: 'severity';
+  breakdown?:    Record<string, number[]>;
+}
+
+// ── Network GIS (Phase 1) ──────────────────────────────────────
+// Mirrors backend app/modules/network/{lifecycle,asset_types,schemas}.py
+// and app/modules/gis/layer_registry.py field for field. Change both sides
+// together. Geometry is GeoJSON in EPSG:4326, coordinates [lng, lat].
+
+export type NetLifecycleStatus =
+  | 'DRAFT' | 'PLANNED' | 'DESIGNED' | 'UNDER_REVIEW' | 'APPROVED'
+  | 'CONSTRUCTION' | 'INSTALLED' | 'TESTING' | 'VERIFIED'
+  | 'ACTIVE' | 'FAULTY' | 'RETIRED' | 'REJECTED';
+
+export type NetAssetType =
+  | 'POP' | 'SITE' | 'OLT' | 'ROOM' | 'RACK' | 'ROUTER' | 'SWITCH' | 'WDM' | 'ODF'
+  | 'CABINET' | 'FDT' | 'FAT' | 'SPLITTER' | 'CLOSURE' | 'ENCLOSURE'
+  | 'POLE' | 'MANHOLE' | 'HANDHOLE'
+  | 'ONU' | 'CUSTOMER_ENDPOINT';
+
+export type NetCableCategory =
+  | 'FEEDER' | 'PICKUP' | 'CLOSURE_FDT' | 'DISTRIBUTION' | 'BOX_TO_BOX' | 'DROP' | 'INTERNAL';
+
+export type NetTier = 'core' | 'distribution' | 'civil' | 'customer';
+export type NetCreationMethod = 'AUTO' | 'MANUAL' | 'IMPORTED' | 'FIELD';
+
+/** GET /network/search, GET /network/assets items */
+export interface NetAssetSummary {
+  id:               string;
+  asset_code:       string;
+  asset_type:       NetAssetType;
+  name:             string | null;
+  lifecycle_status: NetLifecycleStatus;
+  lng:              number;
+  lat:              number;
+}
+
+export interface NetAssetRef {
+  id:         string;
+  asset_code: string;
+  asset_type: NetAssetType;
+  name:       string | null;
+}
+
+/** GET/PATCH/POST /network/assets/{id} */
+export interface NetAsset {
+  id:                  string;
+  asset_code:          string;
+  asset_type:          NetAssetType;
+  name:                string | null;
+  description:         string | null;
+  lifecycle_status:    NetLifecycleStatus;
+  creation_method:     NetCreationMethod;
+  geometry:            { type: 'Point'; coordinates: [number, number] } | { type: string; coordinates: unknown };
+  lng:                 number;
+  lat:                 number;
+  attributes:          Record<string, unknown>;
+  capacity:            number | null;
+  used_capacity:       number | null;
+  parent:              NetAssetRef | null;
+  children_count:      number;
+  project_id:          string | null;
+  design_id:           string | null;
+  lineage_id:          string;
+  source_table:        string | null;
+  allowed_transitions: NetLifecycleStatus[];
+  created_at:          string;
+  updated_at:          string;
+}
+
+export interface NetAssetPage {
+  items:       NetAssetSummary[];
+  total:       number;
+  page:        number;
+  size:        number;
+  total_pages: number;
+}
+
+/** POST /network/assets/sync-uploaded */
+export interface NetBackfillResult {
+  mirrored: Record<'olts' | 'cabinets' | 'splitter_boxes', number>;
+  skipped:  { source_table: string; asset_code: string }[];
+}
+
+export interface GisLayer {
+  key:          NetAssetType | NetCableCategory;
+  label:        string;
+  kind:         'asset' | 'cable';
+  tier:         NetTier | 'cables';
+  min_zoom:     number;
+  count:        number;
+  source_layer: string;
+}
+
+export interface GisLayerGroup {
+  key:    NetTier | 'cables';
+  label:  string;
+  kind:   'asset' | 'cable';
+  layers: GisLayer[];
+}
+
+/** GET /gis/layers */
+export interface GisLayerRegistry {
+  /** Changes on every live-network write; part of the tile URL */
+  revision: string;
+  tiles: {
+    group:         string;
+    /** Relative to the API base URL */
+    url_template:  string;
+    min_zoom:      number;
+    max_zoom:      number;
+    source_layers: { assets: string; cables: string };
+  };
+  contained_min_zoom: number;
+  live_states:        NetLifecycleStatus[];
+  lifecycle_states:   NetLifecycleStatus[];
+  groups:             GisLayerGroup[];
+}
+
+/** GET /gis/bounds — bbox is [minLng, minLat, maxLng, maxLat], null when empty */
+export interface GisBounds {
+  bbox:          [number, number, number, number] | null;
+  feature_count: number;
+}
+
+// ── Network GIS (Phase 2) — catalogue, cables, uploads ─────────
+// Mirrors app/modules/network/{catalogue,attributes,schemas}.py and
+// GET /infrastructure/upload-types.
+
+export type NetFieldKind = 'text' | 'int' | 'number' | 'bool' | 'enum';
+
+export interface NetFieldSpec {
+  key:     string;
+  label:   string;
+  kind:    NetFieldKind;
+  unit:    string | null;
+  options: string[];
+  min:     number | null;
+  help:    string | null;
+}
+
+export interface NetCatalogueAssetType {
+  code:           NetAssetType;
+  label:          string;
+  tier:           NetTier;
+  min_zoom:       number;
+  code_prefix:    string;
+  code_example:   string;
+  /** What `capacity` counts for this type; null = not used */
+  capacity_label: string | null;
+  attributes:     NetFieldSpec[];
+}
+
+export interface NetCatalogueCableCategory {
+  code:         NetCableCategory;
+  label:        string;
+  min_zoom:     number;
+  code_prefix:  string;
+  code_example: string;
+  attributes:   NetFieldSpec[];
+}
+
+export type NetRouteMethod = 'ROAD_GRAPH' | 'MANUAL_GEOMETRY' | 'IMPORTED' | 'DIRECT';
+
+/** GET /network/catalogue */
+export interface NetCatalogue {
+  tiers:              { key: NetTier; label: string }[];
+  asset_types:        NetCatalogueAssetType[];
+  cable_categories:   NetCatalogueCableCategory[];
+  lifecycle_states:   NetLifecycleStatus[];
+  live_states:        NetLifecycleStatus[];
+  transitions:        Record<NetLifecycleStatus, NetLifecycleStatus[]>;
+  creation_methods:   NetCreationMethod[];
+  route_methods:      NetRouteMethod[];
+  installation_types: string[];
+  connection_types:   NetConnectionType[];
+  fiber_statuses:     NetFibreStatus[];
+  utilisation_thresholds: { warning: number; critical: number };
+}
+
+/** GET /network/cables items */
+export interface NetCableSummary {
+  id:               string;
+  asset_code:       string;
+  cable_category:   NetCableCategory;
+  name:             string | null;
+  lifecycle_status: NetLifecycleStatus;
+  length_m:         number | null;
+  fiber_count:      number | null;
+}
+
+/** GET/PATCH /network/cables/{id} */
+export interface NetCable {
+  id:                  string;
+  asset_code:          string;
+  cable_category:      NetCableCategory;
+  name:                string | null;
+  description:         string | null;
+  lifecycle_status:    NetLifecycleStatus;
+  creation_method:     NetCreationMethod;
+  route_method:        NetRouteMethod;
+  installation_type:   string | null;
+  fiber_count:         number | null;
+  /** Metres, computed by the database from the geometry */
+  length_m:            number | null;
+  geometry:            { type: 'LineString'; coordinates: [number, number][] };
+  midpoint:            [number, number];
+  /** [minLng, minLat, maxLng, maxLat] */
+  bbox:                [number, number, number, number];
+  source:              NetAssetRef | null;
+  dest:                NetAssetRef | null;
+  attributes:          Record<string, unknown>;
+  project_id:          string | null;
+  design_id:           string | null;
+  lineage_id:          string;
+  source_table:        string | null;
+  allowed_transitions: NetLifecycleStatus[];
+  created_at:          string;
+  updated_at:          string;
+}
+
+export interface NetCablePage {
+  items:       NetCableSummary[];
+  total:       number;
+  page:        number;
+  size:        number;
+  total_pages: number;
+}
+
+/** GET /infrastructure/upload-types */
+export interface UploadTypeSpec {
+  key:              string;
+  label:            string;
+  description:      string;
+  /** register = the original OLT / cabinet / splitter tables; network = net_* */
+  group:            'register' | 'network';
+  kind:             'asset' | 'cable';
+  asset_type:       string | null;
+  formats:          ('xlsx' | 'geojson')[];
+  required_columns: string[];
+  optional_columns: string[];
+  geojson_geometry: 'Point' | 'LineString' | null;
+}
+
+// ── Network GIS (Phase 3) — topology, trace, utilisation, fibres ─
+// Mirrors app/modules/network/{schemas,topology}.py.
+
+export type NetConnectionType = 'FEED' | 'SPLIT' | 'SPLICE' | 'PATCH' | 'DROP' | 'UPLINK';
+
+export interface NetCableRef {
+  id:             string;
+  asset_code:     string;
+  cable_category: NetCableCategory;
+  length_m:       number | null;
+}
+
+/** One side of an asset's connections; `peer` is the asset at the other end. */
+export interface NetConnection {
+  id:               string;
+  connection_type:  NetConnectionType;
+  lifecycle_status: NetLifecycleStatus;
+  /** Where a derived link comes from ('net_cables', 'attr:…'); null = made by hand */
+  derived_from:     string | null;
+  peer:             NetAssetRef;
+  via_cable:        NetCableRef | null;
+}
+
+/** GET /network/assets/{id}/connections — upstream feeds this asset, downstream is fed by it */
+export interface NetAssetConnections {
+  upstream:   NetConnection[];
+  downstream: NetConnection[];
+}
+
+export interface NetTraceAsset {
+  id:               string;
+  asset_code:       string;
+  asset_type:       NetAssetType;
+  name:             string | null;
+  lifecycle_status: NetLifecycleStatus;
+  lng:              number;
+  lat:              number;
+}
+
+export interface NetTraceHop {
+  asset:           NetTraceAsset;
+  depth:           number;
+  from_id:         string | null;
+  connection_type: NetConnectionType | null;
+  via_cable:       NetCableRef | null;
+}
+
+export type NetTraceDirection = 'upstream' | 'downstream';
+
+/** GET /network/assets/{id}/trace */
+export interface NetTrace {
+  direction:      NetTraceDirection;
+  start_id:       string;
+  hops:           NetTraceHop[];
+  /** upstream: asset ids start → root along one path; downstream: [] */
+  path_ids:       string[];
+  root:           NetTraceAsset | null;
+  reached_root:   boolean;
+  path_length_m:  number | null;
+  counts_by_type: Partial<Record<NetAssetType, number>>;
+  customers:      number;
+  truncated:      boolean;
+  geometry:       { type: 'FeatureCollection'; features: unknown[] };
+}
+
+export type NetUtilisationState = 'ok' | 'warning' | 'critical' | 'full' | 'unknown';
+export type NetUtilisationBasis = 'ports' | 'fat_ports' | 'connections' | 'recorded' | 'none';
+
+/** GET /network/assets/{id}/utilisation */
+export interface NetUtilisation {
+  capacity:       number | null;
+  used:           number | null;
+  available:      number | null;
+  pct:            number | null;
+  state:          NetUtilisationState;
+  basis:          NetUtilisationBasis;
+  capacity_label: string | null;
+}
+
+export type NetFibreStatus = 'FREE' | 'USED' | 'RESERVED' | 'FAULTY' | 'DARK';
+
+/** GET /network/cables/{id}/fibers (TIA-598 colours) */
+export interface NetFibre {
+  fiber_no:        number;
+  tube_no:         number;
+  position:        number;
+  colour:          string;
+  colour_hex:      string;
+  tube_colour:     string;
+  tube_colour_hex: string;
+  status:          NetFibreStatus;
+  recorded:        boolean;
+}
+
+// ── Network GIS (Phase 4) — designs ────────────────────────────
+// Mirrors app/modules/design/{schemas,service,boq_service,validation_service}.py.
+
+export type DesignStatus =
+  | 'DRAFT' | 'GENERATED' | 'MODIFIED' | 'VALIDATING' | 'UNDER_REVIEW' | 'APPROVED'
+  | 'REJECTED' | 'SUPERSEDED' | 'DEPLOYED';
+
+export type DesignInputLayerKey = 'road' | 'homepass' | 'pole' | 'building' | 'pickup' | 'existing_structure';
+
+export interface DesignVersionRef {
+  id:              string;
+  version_no:      number;
+  label:           string | null;
+  creation_method: string;
+  created_at:      string;
+}
+
+/** GET /designs/{id}, GET /projects/{id}/designs items */
+export interface Design {
+  id:              string;
+  project_id:      string;
+  project_name:    string | null;
+  name:            string;
+  description:     string | null;
+  status:          DesignStatus;
+  boundary:        { type: 'MultiPolygon'; coordinates: unknown } | null;
+  /** [minLng, minLat, maxLng, maxLat] of boundary, inputs and working set */
+  bbox:            [number, number, number, number] | null;
+  engine_config:   Record<string, unknown>;
+  current_version: DesignVersionRef | null;
+  input_counts:    Record<DesignInputLayerKey, number>;
+  created_at:      string;
+  updated_at:      string;
+}
+
+/** GET /designs/{id}/inputs items */
+export interface DesignInputLayer {
+  layer_key:     DesignInputLayerKey;
+  label:         string;
+  feature_count: number;
+  last_upload:   { filename: string | null; uploaded_at: string; mode: 'replace' | 'append'; feature_count: number } | null;
+}
+
+/** POST /designs/{id}/inputs/{layer} — nothing is written when rejected */
+export interface DesignInputUploadResult {
+  status:        'saved' | 'rejected';
+  layer_key:     DesignInputLayerKey;
+  feature_count: number;
+  errors:        { row: number; field: string; error: string }[];
+  warnings:      string[];
+  upload_id:     string | null;
+}
+
+/** GET /designs/{id}/summary */
+export interface DesignSummary {
+  homepasses:   number;
+  customers:    number;
+  fdt:          number;
+  fat:          number;
+  splitters:    number;
+  closures:     number;
+  poles:        number;
+  cable_km:     number;
+  errors:       number;
+  warnings:     number;
+  validated_at: string | null;
+}
+
+export interface DesignBoqQuantity {
+  group:        'Devices' | 'Cable';
+  item:         string;
+  code:         string;
+  quantity:     number;
+  unit:         'each' | 'm';
+  pieces?:      number;
+  fiber_count?: number | null;
+}
+
+/** GET /designs/{id}/boq — streets are the FTTx engine's own BOQ rows */
+export interface DesignBoq {
+  quantities:           DesignBoqQuantity[];
+  streets:              Record<string, string | number | null>[];
+  street_boq_available: boolean;
+  notes:                string[];
+  engine_findings:      { severity: string; category: string; message: string }[];
+}
+
+export type DesignIssueSeverity = 'ERROR' | 'WARNING' | 'INFO';
+
+export interface DesignIssue {
+  id:         string;
+  severity:   DesignIssueSeverity;
+  code:       string;
+  rule:       string | null;
+  message:    string;
+  asset_id:   string | null;
+  cable_id:   string | null;
+  geometry:   { type: string; coordinates: unknown } | null;
+  metadata:   Record<string, unknown>;
+  created_at: string;
+}
+
+/** POST /designs/{id}/validate, GET /designs/{id}/validation */
+export interface DesignValidation {
+  issues:  DesignIssue[];
+  summary: { errors: number; warnings: number; info: number; validated_at?: string };
+  /** Phase 5: the FTTx engine's own findings, for an auto-designed version */
+  engine_findings?: { severity: string; category: string; message: string }[];
+}
+
+/** POST /designs/{id}/route */
+export interface DesignRoute {
+  geometry:        { type: 'LineString'; coordinates: [number, number][] };
+  length_m:        number;
+  straight_line_m: number;
+  route_method:    'ROAD_GRAPH';
+  from_code:       string | null;
+  to_code:         string | null;
+}
+
+// ── Network GIS (Phase 5) — auto design ───────────────────────
+// Mirrors app/modules/design/auto_design.py.
+
+export type DesignRunStatus = 'draft' | 'layers_pending' | 'ready' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+/** result_summary.design once a run's output is in the design */
+export interface DesignRunApplied {
+  version_no: number;
+  counts:     Record<string, number>;
+  warnings:   string[];
+  validation: { errors: number; warnings: number; info: number; validated_at?: string };
+}
+
+/** GET /designs/{id}/generate/status (null: never run); POST …/generate adds notes */
+export interface DesignGenerateStatus {
+  run_id:           string;
+  status:           DesignRunStatus;
+  progress_pct:     number;
+  progress_message: string | null;
+  error_message:    string | null;
+  result_summary:   (Record<string, unknown> & { design?: DesignRunApplied; fdt_count?: number; fat_count?: number }) | null;
+  design_version:   { id: string; version_no: number } | null;
+  created_at:       string | null;
+  started_at:       string | null;
+  completed_at:     string | null;
+  /** Only on POST: what the input adapter left out or added */
+  notes?:           string[];
+}
+
+/** GET /designs/{id}/importable-runs */
+export interface ImportableRun {
+  id:                string;
+  name:              string | null;
+  completed_at:      string | null;
+  from_this_design:  boolean;
+  fdt_count:         number | null;
+  fat_count:         number | null;
+  homepass_count:    number | null;
+  deployment_type:   string | null;
+  pon_architecture:  string | null;
+}
+
+/** POST /designs/{id}/import-run */
+export interface DesignImportResult extends DesignRunApplied {
+  inputs_copied: string[];
+}
+
+/** The engine's own findings from the run that produced the current version */
+export interface EngineFinding { severity: string; category: string; message: string }
+
+// ── Network GIS (Phase 6) — manual design ─────────────────────
+// Mirrors app/modules/design/{operations,snap}.py.
+
+export type DesignOpKind =
+  | 'ADD_ASSET' | 'MOVE_ASSET' | 'DELETE_ASSET' | 'UPDATE_ATTRS' | 'DRAW_CABLE' | 'DELETE_CABLE'
+  | 'EDIT_CABLE_GEOM' | 'SPLIT_CABLE' | 'EXTEND_CABLE' | 'CONNECT' | 'DISCONNECT';
+
+/** One end of a drawn / extended cable */
+export type DesignCableEnd = { asset_id: string } | { lng: number; lat: number };
+
+/** POST /designs/{id}/operations — op plus its own fields (see operations.py) */
+export type DesignOperationBody = { op: DesignOpKind } & Record<string, unknown>;
+
+export interface DesignOpHistory {
+  can_undo:   boolean;
+  can_redo:   boolean;
+  undo_label: string | null;
+  redo_label: string | null;
+  applied:    number;
+}
+
+/** A cable recalculated after its device moved (Phase 7) */
+export interface DesignRerouted {
+  id: string; code: string; category: string; route_method: string; before_m: number; after_m: number; note?: string;
+}
+
+/** A BOQ line an edit changed (Phase 7) */
+export interface DesignBoqChange {
+  item: string; code: string; unit: 'each' | 'm'; group: 'Devices' | 'Cable'; before: number; after: number; change: number;
+}
+
+/** What an edit changed: the client patches its cache from this (Phase 7) */
+export interface DesignDelta {
+  boq:      DesignBoqChange[];
+  issues:   { new: { severity: string; code: string; message: string }[]; resolved: { severity: string; code: string; message: string }[] };
+  features: GeoJSON.Feature[];
+  removed:  { assets: string[]; cables: string[] };
+}
+
+/** Every operation, undo and redo answers with this */
+export interface DesignOpResult {
+  operation: { seq: number; op: DesignOpKind; label: string; asset_id?: string | null; cable_id?: string;
+               asset_code?: string; length_m?: number; route_method?: string; cables_followed?: number; removed_cables?: number;
+               rerouted?: DesignRerouted[] };
+  history:    DesignOpHistory;
+  summary:    DesignSummary;
+  validation: { errors: number; warnings: number; info: number; validated_at?: string };
+  delta:      DesignDelta;
+}
+
+/** GET /designs/{id}/operations */
+export interface DesignOpLog extends DesignOpHistory {
+  operations: { seq: number; op: DesignOpKind; label: string; created_at: string; undone: boolean }[];
+}
+
+export type DesignSnapKind = 'asset' | 'pole_input' | 'homepass' | 'pickup' | 'live_asset' | 'vertex' | 'road' | 'boundary';
+
+export interface DesignSnapCandidate {
+  kind: DesignSnapKind; id: string; code: string; sub: string; lng: number; lat: number; distance_m: number;
+}
+
+/** POST /designs/{id}/snap */
+export type DesignSnap =
+  | ({ snapped: true; candidates: DesignSnapCandidate[] } & DesignSnapCandidate)
+  | { snapped: false; lng: number; lat: number; kind: null; candidates: [] };
+
+// ── Network GIS (Phase 8) — versions and audit ───────────────
+// Mirrors app/modules/design/{versions,audit}.py.
+
+/** GET /designs/{id}/versions items (newest first) */
+export interface DesignVersionInfo {
+  id:                string;
+  version_no:        number;
+  label:             string | null;
+  creation_method:   'INITIAL' | 'AUTO' | 'MANUAL' | 'IMPORTED' | 'RESTORED';
+  created_at:        string;
+  created_by:        string | null;
+  is_current:        boolean;
+  /** Frozen = its snapshot is kept; it never changes again */
+  frozen:            boolean;
+  frozen_at:         string | null;
+  parent_version_id: string | null;
+  counts:            (Record<string, number> & { assets?: number; cables?: number; inputs?: number; cable_m?: number }) | null;
+  validation:        { errors?: number; warnings?: number; validated_at?: string } | null;
+}
+
+export interface DesignMove { kind: 'asset'; code: string; type: string; id: string; from: [number, number]; to: [number, number]; distance_m: number }
+
+export interface DesignChange {
+  kind: 'asset' | 'cable'; code: string; id: string; fields: string[];
+  before: Record<string, unknown>; after: Record<string, unknown>;
+  length_before_m?: number | null; length_after_m?: number | null; geometry_before?: GeoJSON.Geometry;
+}
+
+/** GET /designs/{id}/compare?from=&to= */
+export interface DesignCompare {
+  from: number; to: number;
+  added: GeoJSON.Feature[]; removed: GeoJSON.Feature[]; moved: DesignMove[]; changed: DesignChange[];
+  counts: { added: number; removed: number; moved: number; changed: number };
+}
+
+/** POST /designs/{id}/versions/{no}/restore */
+export interface DesignRestoreResult {
+  version_no: number; restored_from: number; kept_as: number | null; inputs_restored: boolean;
+  validation: { errors: number; warnings: number; info: number };
+}
+
+/** One entry of the network audit trail (network_audit_log + infrastructure_audit_log) */
+export interface AuditEntry {
+  id: string; entity_type: string; entity_id: string | null; entity_code: string | null; action: string;
+  actor: string; occurred_at: string; changed_fields: string[];
+  old: Record<string, unknown> | null; new: Record<string, unknown> | null; source: 'network' | 'infrastructure';
+}
+
+// ── Network GIS (Phase 9) — design and BOQ approval ──────────
+// Mirrors app/modules/approval/service.py.
+
+export type ApprovalSubject = 'DESIGN_VERSION' | 'BOQ';
+export type DesignApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN';
+
+export interface ApprovalStep {
+  step_no: number; key: string; label: string; feature_key: string;
+  status: 'WAITING' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  decided_by: string | null; decided_at: string | null; comment: string | null;
+}
+
+export interface ApprovalComment {
+  id: string; asset_id: string | null; cable_id: string | null; target_code: string | null;
+  lng: number | null; lat: number | null; body: string; author: string | null; created_at: string;
+  resolved: boolean; resolved_by: string | null;
+}
+
+export interface ApprovalRequest {
+  id: string; subject_type: ApprovalSubject; subject_id: string; revision: number; status: DesignApprovalStatus;
+  note: string | null; submitted_by: string | null; submitted_at: string; decided_at: string | null;
+  /** Design: the validation summary and counts at submission. BOQ: the frozen quantities and street rows */
+  payload: Record<string, unknown> & { quantities?: DesignBoqQuantity[]; version_no?: number;
+                                       validation?: { errors: number; warnings: number } };
+  steps: ApprovalStep[]; comments: ApprovalComment[]; pending_step: string | null;
+  can_decide?: boolean; can_withdraw?: boolean;
+}
+
+/** What deployment (Phase 10) needs, for the current version */
+export interface ApprovalGate {
+  design: DesignApprovalStatus | null; boq: DesignApprovalStatus | null;
+  design_approved: boolean; boq_approved: boolean; can_deploy: boolean; reasons: string[];
+}
+
+/** GET /designs/{id}/approvals */
+export interface ApprovalOverview {
+  requests: ApprovalRequest[]; gate: ApprovalGate; can_submit_design: boolean; can_submit_boq: boolean;
+}
+
+/** GET /approvals/{id}/boq-diff */
+export interface BoqDiff {
+  revision: number; previous_revision: number | null; quantities: DesignBoqQuantity[]; changes: DesignBoqChange[];
+}
+
+// ── Deployment (Network GIS Phase 10) ────────────────────────
+
+export type DeploymentAction = 'install' | 'test' | 'verify' | 'fail';
+export interface DeploymentItem { kind: 'asset' | 'cable'; id: string }
+
+export interface DeploymentRecord {
+  status: 'IN_PROGRESS' | 'PROMOTED'; started_at: string; note: string | null; promoted_at: string | null;
+  summary: { assets: number; cables: number; cable_m: number; version_no: number } | null;
+}
+
+/** Design length vs as-built (cables), or how far a device moved from its designed spot */
+export interface DeploymentVariance {
+  kind: 'asset' | 'cable'; id: string; code: string;
+  design_m: number | null; asbuilt_m: number | null; moved_m: number | null;
+  difference_m?: number; difference_pct?: number;
+}
+
+/** GET /designs/{id}/deployment */
+export interface DeploymentProgress {
+  deployment: DeploymentRecord | null;
+  gate: ApprovalGate;
+  items: number; states: Partial<Record<NetLifecycleStatus, number>>;
+  installed: number; verified: number; installed_pct: number; verified_pct: number;
+  fats: { total: number; installed: number; verified: number };
+  cable_m: { planned: number; installed: number };
+  per_fdt: { fdt: string; state: NetLifecycleStatus; fats: number; installed: number; verified: number }[];
+  variance: DeploymentVariance[];
+  ready_to_promote: boolean; not_verified: number;
+}
+
+/** POST /designs/{id}/deployment/progress */
+export interface DeploymentAdvanceResult {
+  changed: { code: string; from: NetLifecycleStatus; to: NetLifecycleStatus }[];
+  refused: { code: string; state: NetLifecycleStatus; reason: string }[];
+  progress: DeploymentProgress;
+}
+
+/** POST /designs/{id}/promote */
+export interface PromoteResult {
+  promoted: { assets: number; cables: number; cable_m: number; version_no: number };
+  design_status: DesignStatus;
 }

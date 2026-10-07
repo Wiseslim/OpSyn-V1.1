@@ -153,8 +153,9 @@ describe('DeptInboxPage — assign modal', () => {
     await waitFor(() => screen.getByText('Investigate fiber cut in Zone 4'));
     await userEvent.click(screen.getByRole('button', { name: /assign to staff/i }));
     await waitFor(() => screen.getByText(/assign task to staff/i));
-    const select = screen.getByRole('combobox') as HTMLSelectElement;
-    const options = Array.from(select.options).map(o => o.text);
+    // Select is a listbox (Phase 4): open it and read its options
+    await userEvent.click(screen.getByRole('combobox'));
+    const options = (await screen.findAllByRole('option')).map(o => o.textContent ?? '');
     expect(options.some(o => o.includes('Alice Tech'))).toBe(true);
     expect(options.some(o => o.includes('Bob Tech'))).toBe(true);
   });
@@ -164,8 +165,8 @@ describe('DeptInboxPage — assign modal', () => {
     await waitFor(() => screen.getByText('Investigate fiber cut in Zone 4'));
     await userEvent.click(screen.getByRole('button', { name: /assign to staff/i }));
     await waitFor(() => screen.getByText(/assign task to staff/i));
-    const select = screen.getByRole('combobox') as HTMLSelectElement;
-    await userEvent.selectOptions(select, 'u1');
+    await userEvent.click(screen.getByRole('combobox'));
+    await userEvent.click(await screen.findByRole('option', { name: /Alice Tech/ }));
     await waitFor(() => {
       const assignBtns = screen.getAllByRole('button', { name: /^assign$/i });
       const modalAssign = assignBtns[assignBtns.length - 1];

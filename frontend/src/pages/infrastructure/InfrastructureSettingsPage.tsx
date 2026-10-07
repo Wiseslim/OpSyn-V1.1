@@ -7,6 +7,9 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { infrastructureApi } from '../../api/index';
 import type { InfraMonitoringConfig, InfraAlertRule } from '@shared';
+import { Modal as UiModal, Tabs } from '../../components/ui';
+import { GlassSelect } from '../../components/glass';
+import { Page, PageHeader } from '../../components/layout/Page';
 
 // ── Shared primitives (inline to avoid cross-page imports) ───
 const card = (extra?: React.CSSProperties): React.CSSProperties => ({
@@ -29,7 +32,7 @@ function Btn({ children, variant, onClick, disabled, style }: any) {
     opacity: disabled ? 0.5 : 1, ...style,
   };
   const colors: Record<string, React.CSSProperties> = {
-    brand: { background: 'var(--brand)', color: '#fff' },
+    brand: { background: 'var(--brand)', color: 'var(--brand-contrast)' },
     ghost: { background: 'transparent', color: 'var(--chalk3)', border: '1px solid var(--wire)' },
     rose:  { background: 'rgba(244,63,94,.12)', color: 'var(--rose)', border: '1px solid rgba(244,63,94,.3)' },
     amber: { background: 'rgba(251,191,36,.12)', color: 'var(--amber)', border: '1px solid rgba(251,191,36,.3)' },
@@ -51,28 +54,14 @@ function Sel({ label, value, onChange, options }: { label: string; value: string
   return (
     <div style={{ marginBottom: 14 }}>
       <label style={{ display: 'block', fontSize: 9, fontWeight: 700, color: 'var(--chalk3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '.1em' }}>{label}</label>
-      <select value={value} onChange={e => onChange(e.target.value)}
-        style={{ width: '100%', background: 'var(--bg3)', border: '1px solid var(--wire2)', borderRadius: 8, padding: '9px 12px', color: 'var(--chalk)', fontFamily: 'var(--font)', fontSize: 12, outline: 'none' }}>
-        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
+      <GlassSelect value={String(value)} onChange={v => onChange(v)} options={[...options.map((o) => ({ value: String(o.value), label: String(o.label) }))]} ariaLabel={label} />
     </div>
   );
 }
 
+/** Local alias kept for existing call sites — the shared glass dialog */
 function Modal({ open, onClose, title, children, footer }: any) {
-  if (!open) return null;
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000 }}>
-      <div style={{ background: 'var(--bg2)', border: '1px solid var(--wire)', borderRadius: 16, padding: 24, width: 480, maxHeight: '90vh', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
-          <span style={{ fontWeight: 800, fontSize: 15, color: 'var(--chalk)' }}>{title}</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--chalk3)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
-        </div>
-        <div style={{ marginBottom: 20 }}>{children}</div>
-        {footer && <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>{footer}</div>}
-      </div>
-    </div>
-  );
+  return <UiModal open={open} onClose={onClose} title={title} footer={footer}>{children}</UiModal>;
 }
 
 // ── Toast (minimal inline) ────────────────────────────────────
@@ -250,27 +239,21 @@ export default function InfrastructureSettingsPage() {
   const TD: React.CSSProperties = { padding: '10px 14px', borderBottom: '1px solid var(--wire)', fontSize: 12 };
 
   return (
-    <div style={{ overflow: 'auto', flex: 1 }}>
-      <div style={{ padding: 20 }}>
-        <div style={{ marginBottom: 22 }}>
-          <div style={{ fontWeight: 800, fontSize: 20, color: 'var(--chalk)', letterSpacing: '-.03em' }}>Infrastructure Settings</div>
-          <div style={{ fontSize: 12, color: 'var(--chalk3)', marginTop: 4 }}>Monitoring configs · alert rules · port inventory</div>
-        </div>
+    <Page>
+        <PageHeader title="Infrastructure settings" lede="Monitoring configs · alert rules · port inventory" />
+        <Tabs
+          label="Settings sections"
+          idPrefix="infra-settings"
+          value={tab}
+          onChange={setTab}
+          items={[
+            { value: 'monitoring', label: 'Monitoring configs' },
+            { value: 'rules',      label: 'Alert rules' },
+            { value: 'ports',      label: 'Port inventory' },
+          ]}
+        />
 
-        {/* Tab bar */}
-        <div style={{ display: 'flex', gap: 2, marginBottom: 20, background: 'var(--bg2)', borderRadius: 10, padding: 3, width: 'fit-content', border: '1px solid var(--wire)' }}>
-          {([
-            { key: 'monitoring', label: 'Monitoring Configs' },
-            { key: 'rules',      label: 'Alert Rules' },
-            { key: 'ports',      label: 'Port Inventory' },
-          ] as const).map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              style={{ padding: '5px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'var(--font)', fontSize: 12, fontWeight: 600, transition: 'all .15s', background: tab === t.key ? 'var(--bg4)' : 'transparent', color: tab === t.key ? 'var(--chalk)' : 'var(--chalk3)' }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
+        <div role="tabpanel" id="infra-settings-panel" aria-labelledby={`infra-settings-tab-${tab}`}>
         {/* ── MONITORING CONFIGS ── */}
         {tab === 'monitoring' && (
           <>
@@ -278,7 +261,7 @@ export default function InfrastructureSettingsPage() {
               <Btn variant="brand" onClick={openNewConfig} style={{ fontSize: 11, padding: '5px 12px' }}>+ New Config</Btn>
             </div>
             <div style={card({ padding: 0 })}>
-              <div style={{ overflowX: 'auto' }}>
+              <div style={{ overflowX: 'auto' }} tabIndex={0} role="region" aria-label="Monitoring configs">
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead><tr>
                     {['Entity Type', 'Entity ID', 'Warn %', 'Critical %', 'Interval', 'Channels', 'Active', 'Actions'].map(h => <th key={h} style={TH}>{h}</th>)}
@@ -318,7 +301,7 @@ export default function InfrastructureSettingsPage() {
               <Btn variant="brand" onClick={openNewRule} style={{ fontSize: 11, padding: '5px 12px' }}>+ New Rule</Btn>
             </div>
             <div style={card({ padding: 0 })}>
-              <div style={{ overflowX: 'auto' }}>
+              <div style={{ overflowX: 'auto' }} tabIndex={0} role="region" aria-label="Alert rules">
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead><tr>
                     {['Name', 'Condition', 'Threshold', 'Severity', 'Action', 'Active', 'Actions'].map(h => <th key={h} style={TH}>{h}</th>)}
@@ -354,11 +337,7 @@ export default function InfrastructureSettingsPage() {
         {tab === 'ports' && (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <select value={selectedNodeId} onChange={e => setSelectedNodeId(e.target.value)}
-                style={{ background: 'var(--bg3)', border: '1px solid var(--wire2)', borderRadius: 8, padding: '7px 12px', color: 'var(--chalk)', fontFamily: 'var(--font)', fontSize: 12, outline: 'none', minWidth: 260 }}>
-                <option value="">— Select a node —</option>
-                {nodes.map((n: any) => <option key={n.id} value={n.id}>{n.name} ({n.node_type})</option>)}
-              </select>
+              <GlassSelect value={String(selectedNodeId)} onChange={v => setSelectedNodeId(v)} options={[...nodes.map((n: any) => ({ value: String(n.id), label: `${n.name} (${n.node_type})` }))]} placeholder={'— Select a node —'} ariaLabel="Node" compact />
               <Btn variant="amber" onClick={() => syncPorts.mutate()} disabled={syncPorts.isPending} style={{ fontSize: 11, padding: '5px 12px' }}>
                 {syncPorts.isPending ? 'Queuing…' : 'Sync Ports Now'}
               </Btn>
@@ -370,7 +349,7 @@ export default function InfrastructureSettingsPage() {
               </div>
             ) : (
               <div style={card({ padding: 0 })}>
-                <div style={{ overflowX: 'auto' }}>
+                <div style={{ overflowX: 'auto' }} tabIndex={0} role="region" aria-label="Port inventory">
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead><tr>
                       {['Port #', 'Type', 'Used', 'Total', 'Utilisation', 'Status', 'Last Synced'].map(h => <th key={h} style={TH}>{h}</th>)}
@@ -412,7 +391,7 @@ export default function InfrastructureSettingsPage() {
             )}
           </>
         )}
-      </div>
+        </div>
 
       {/* ── MONITORING CONFIG MODAL ── */}
       <Modal open={configModal} onClose={() => setConfigModal(false)} title={editConfig ? 'Edit Monitoring Config' : 'New Monitoring Config'}
@@ -469,6 +448,6 @@ export default function InfrastructureSettingsPage() {
           <label htmlFor="rule-active" style={{ fontSize: 12, color: 'var(--chalk2)', cursor: 'pointer' }}>Active</label>
         </div>
       </Modal>
-    </div>
+    </Page>
   );
 }

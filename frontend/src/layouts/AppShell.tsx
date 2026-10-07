@@ -1,159 +1,176 @@
 // ============================================================
-// OPSYN APP SHELL — src/layouts/AppShell.tsx   (Stage 2 rebuild)
-// CSS Grid orchestrator:
-//   grid-areas: rail | topbar | intelstrip | content
-// Children:
-//   PrimaryRail  — 64px icon rail, hover-triggers flyout
-//   Topbar       — 56px topbar, page title + profile dropdown
-//   FlyoutDrawer — glassmorphism overlay, never pushes content
-//   IntelStrip   — 40px live KPI bar
-//   <Outlet />   — page content
+// OPSYN APP SHELL — src/layouts/AppShell.tsx   (Phase 3 rebuild)
+//
+//   PrimarySidebar  solid, labelled, collapsible (remembered)      ≥1024px
+//   TopBar          breadcrumbs · search (Ctrl K) · theme · notifications · account
+//   HealthBar       open outages by severity · SLA risk · on call · freshness
+//   SectionMenu     GLASS secondary sidebar for areas with sub-pages ≥1024px
+//   SectionTabs     the same pages as a tab strip                  <1024px
+//   NavDrawer       full navigation in a drawer                    <1024px
+//   BottomNav       Home · Alarms · Map · Tasks · Menu             <768px
+//   CommandPalette  every destination + shell actions
+//
+// Navigation data: ./navigation.ts. Page contract unchanged: <Outlet/> sits
+// in a clipping flex column and each page owns its own scroll container.
 // ============================================================
 
-import { useRef, useState, useCallback, useEffect } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { GlassCommandPalette, useCommandPaletteShortcut } from '../components/glass';
+import ToastContainer from '../components/ui/Toast';
+import { useShellLayout } from '../hooks/useMediaQuery';
+import { useAuthStore } from '../store/auth.store';
+import { useShellStore } from '../store/shell.store';
+import { useThemeStore } from '../store/theme.store';
+import BottomNav from './BottomNav';
+import HealthBar from './HealthBar';
+import NavDrawer from './NavDrawer';
+import { resolveNav } from './navigation';
+import PageBoundary from './PageBoundary';
+import PrimarySidebar from './PrimarySidebar';
+import { SectionMenu, SectionTabs } from './SectionMenu';
+import { buildShellCommands } from './shellCommands';
+import TopBar from './TopBar';
+import { useShellData } from './useShellData';
+import styles from './Shell.module.css';
 
-import { notificationsApi, onboardingApi } from '../api/index';
-import ToastContainer                       from '../components/ui/Toast';
-import PrimaryRail, { type CategoryKey }    from './PrimaryRail';
-import Topbar                               from './Topbar';
-import FlyoutDrawer                         from './FlyoutDrawer';
-import IntelStrip                           from './IntelStrip';
-import { type SidebarKey }                  from '../store/ui.store';
-
-// ── Route metadata ─────────────────────────────────────────────
-// Maps the first path segment → { title, crumb, sbKey }
-const ROUTE_META: Record<string, { title: string; crumb: string; sbKey: SidebarKey }> = {
-  dashboard:            { title: 'Command Center',         crumb: '/ Overview',       sbKey: 'dashboard' },
-  tasks:                { title: 'Task Board',             crumb: '/ All Tasks',      sbKey: 'tasks'     },
-  projects:             { title: 'Project Monitor',        crumb: '/ Active',         sbKey: 'tasks'     },
-  outage:               { title: 'Outage Monitor',         crumb: '/ Live Incidents', sbKey: 'tasks'     },
-  staff:                { title: 'Personnel Directory',    crumb: '/ All Staff',      sbKey: 'staff'     },
-  onboarding:           { title: 'Onboarding',             crumb: '/ Requests',       sbKey: 'staff'     },
-  roles:                { title: 'Roles & Permissions',    crumb: '/ Access Matrix',  sbKey: 'staff'     },
-  reports:              { title: 'Intelligence Reports',   crumb: '/ Analytics',      sbKey: 'intel'     },
-  audit:                { title: 'Audit Logs',             crumb: '/ All Events',     sbKey: 'intel'     },
-  notifications:        { title: 'Notifications',          crumb: '/ Inbox',          sbKey: 'dashboard' },
-  org:                  { title: 'Workflow Builder',       crumb: '/ Dept Routing',   sbKey: 'staff'     },
-  infrastructure:       { title: 'Network Infrastructure', crumb: '/ Asset Registry', sbKey: 'intel'     },
-  settings:             { title: 'Settings',               crumb: '/ Admin Panel',    sbKey: 'settings'  },
-  activity:             { title: 'Activity Feed',          crumb: '/ Timeline',       sbKey: 'intel'     },
-  shifts:               { title: 'NOC Shift Scheduler',   crumb: '/ Weekly Grid',    sbKey: 'tasks'     },
-  customers:            { title: 'Customers',              crumb: '/ All Customers',  sbKey: 'tasks'     },
-};
-
-// ══ APP SHELL ═════════════════════════════════════════════════
 export default function AppShell() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
+  const navigate = useNavigate();
+  const layout = useShellLayout();
+  const active = useMemo(() => resolveNav(pathname, search), [pathname, search]);
+  const data = useShellData();
 
-  // ── Drawer / category state ───────────────────────────────────
-  const [activeCategory, setActiveCategory] = useState<CategoryKey | null>(null);
-  const openTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { sidebar, setSidebar, sectionMenu, setSectionMenu } = useShellStore();
+  const setTheme = useThemeStore(s => s.setPreference);
+  const clearAuth = useAuthStore(s => s.clearAuth);
 
-  // ── Live badge counts ────────────────────────────────────────
-  const { data: unreadCount = 0 } = useQuery({
-    queryKey:        ['notifications', 'unread-count'],
-    queryFn:         () => notificationsApi.getUnreadCount(),
-    refetchInterval: 30_000,
-  });
+  const [navOpen, setNavOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
-  const { data: onboardingData } = useQuery({
-    queryKey:        ['onboarding', 'pending-count'],
-    queryFn:         () => onboardingApi.list({ status: 'pending' }),
-    refetchInterval: 60_000,
-  });
-  const pendingOnboard: number =
-    (onboardingData as any)?.items?.length ??
-    (Array.isArray(onboardingData) ? (onboardingData as any[]).length : 0);
+  // No saved choice: expanded on desktop, collapsed on laptop
+  const collapsed = sidebar ? sidebar === 'collapsed' : layout === 'laptop';
+  const compact = layout === 'tablet' || layout === 'field';
+  const toggleSidebar = useCallback(
+    () => setSidebar(collapsed ? 'expanded' : 'collapsed'),
+    [collapsed, setSidebar],
+  );
 
-  // ── Route metadata ───────────────────────────────────────────
-  const routeKey = pathname.slice(1).split('/')[0] || 'dashboard';
-  const meta = ROUTE_META[routeKey] ?? ROUTE_META.dashboard;
+  const area = active.area?.pages?.length ? { ...active.area, pages: active.area.pages } : null;
+  const sectionDocked = !!area && !compact && sectionMenu;
+  const criticalOpen = data.health.bySeverity.critical > 0;
 
-  // ── Drawer timer helpers ─────────────────────────────────────
-  const scheduleOpenCategory = useCallback((cat: CategoryKey) => {
-    if (closeTimer.current) clearTimeout(closeTimer.current);
-    openTimer.current = setTimeout(() => setActiveCategory(cat), 120);
-  }, []);
+  const openPalette = useCallback(() => setPaletteOpen(true), []);
+  useCommandPaletteShortcut(openPalette);
 
-  const scheduleClose = useCallback(() => {
-    if (openTimer.current) clearTimeout(openTimer.current);
-    closeTimer.current = setTimeout(() => setActiveCategory(null), 280);
-  }, []);
+  const commands = useMemo(() => buildShellCommands({
+    navigate,
+    setTheme,
+    toggleSidebar: compact ? undefined : toggleSidebar,
+    signOut: () => { clearAuth(); navigate('/login'); },
+  }), [navigate, setTheme, compact, toggleSidebar, clearAuth]);
 
-  const cancelClose = useCallback(() => {
-    if (closeTimer.current) clearTimeout(closeTimer.current);
-  }, []);
-
-  // Clean up timers on unmount
-  useEffect(() => () => {
-    if (openTimer.current)  clearTimeout(openTimer.current);
-    if (closeTimer.current) clearTimeout(closeTimer.current);
-  }, []);
-
-  // Close drawer when route changes
+  // Browser tab names the page (and the open-alarm count when there is one)
+  const title = active.crumbs[active.crumbs.length - 1]?.label ?? 'OpSyn';
   useEffect(() => {
-    // Responding to navigation, not deriving state from props: the drawer
-    // // closes when the route changes. activeCategory is also driven by the hover
-    // // timers above, so it cannot be derived from pathname alone.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setActiveCategory(null);
+    const alarms = data.health.open;
+    document.title = `${alarms > 0 ? `(${alarms}) ` : ''}${title} · OpSyn`;
+  }, [title, data.health.open]);
+
+  // Route change: move focus to the new page's heading (or <main>) so screen
+  // readers announce the page and keyboard users start from its top.
+  // Skipped on first load and for query-only changes (tabs, filters), and
+  // never pulls focus out of an open dialog.
+  const mainRef = useRef<HTMLElement>(null);
+  const firstPath = useRef(true);
+  useEffect(() => {
+    if (firstPath.current) { firstPath.current = false; return; }
+    const main = mainRef.current;
+    if (!main) return;
+    main.scrollTop = 0;
+    let frame = 0;
+    let tries = 0;
+    const focusPage = () => {
+      const active = document.activeElement;
+      if (active?.closest('[role="dialog"], [role="alertdialog"]')) return;
+      const h1 = main.querySelector<HTMLElement>('h1');
+      if (!h1 && tries++ < 30) { frame = requestAnimationFrame(focusPage); return; } // lazy route still loading
+      const target = h1 ?? main;
+      if (h1 && !h1.hasAttribute('tabindex')) h1.setAttribute('tabindex', '-1');
+      target.focus({ preventScroll: true });
+    };
+    frame = requestAnimationFrame(focusPage);
+    return () => cancelAnimationFrame(frame);
   }, [pathname]);
 
-  // Map page needs deeper blur on flyout per spec (Stage 4 refinement entry-point)
-  const isOnMap = pathname.startsWith('/infrastructure');
-
-  const drawerOpen = activeCategory !== null;
-
   return (
-    // .drawer-open class hides rail CSS tooltips while flyout is visible
     <div
-      className={`app-shell${drawerOpen ? ' drawer-open' : ''}`}
-      style={{ position: 'relative' }}
+      className={`${styles.shell} liquid-glass-backdrop`}
+      data-layout={layout}
+      data-sidebar={collapsed ? 'collapsed' : 'expanded'}
     >
-      {/* ── grid-area: rail ── */}
-      <PrimaryRail
-        activeCategory={activeCategory}
-        onHoverCategory={scheduleOpenCategory}
-        onLeaveRail={scheduleClose}
+      <a href="#main" className={styles.skip}>Skip to content</a>
+
+      <PrimarySidebar
+        active={active}
+        badges={data.badges}
+        collapsed={collapsed}
+        criticalOpen={criticalOpen}
+        onToggle={toggleSidebar}
       />
 
-      {/* ── grid-area: topbar ── */}
-      <Topbar
-        title={meta.title}
-        crumb={meta.crumb}
-        unreadCount={unreadCount}
+      <TopBar
+        active={active}
+        layout={layout}
+        unreadCount={data.unreadCount}
+        onOpenNav={() => setNavOpen(true)}
+        onOpenPalette={openPalette}
+        sectionMenu={area && !compact ? { open: sectionMenu, onToggle: () => setSectionMenu(!sectionMenu) } : undefined}
       />
 
-      {/* ── Flyout drawer — position: absolute, never in grid flow ── */}
-      <FlyoutDrawer
-        activeCategory={activeCategory}
-        onMouseEnter={cancelClose}
-        onMouseLeave={scheduleClose}
-        unreadCount={unreadCount}
-        pendingOnboard={pendingOnboard}
-        isOnMap={isOnMap}
+      <HealthBar
+        health={data.health}
+        onCall={data.onCall}
+        updatedAt={data.updatedAt}
+        stale={data.stale}
+        loading={data.loading}
       />
 
-      {/* ── grid-area: intelstrip ── */}
-      <IntelStrip />
+      {area && compact && <SectionTabs area={area} active={active} />}
 
-      {/* ── grid-area: content ── */}
-      <main
-        style={{
-          gridArea:  'content',
-          overflow:  'hidden',
-          display:   'flex',
-          flexDirection: 'column',
-          minWidth:  0,
-          minHeight: 0,
-          background: 'var(--color-surface)',
-        }}
-      >
-        <Outlet />
-      </main>
+      <div className={styles.main} data-section-menu={sectionDocked || undefined}>
+        {sectionDocked && area && (
+          <div className={styles.sectionCell}>
+            <SectionMenu
+              area={area}
+              active={active}
+              badges={data.badges}
+              open
+              onOpenChange={setSectionMenu}
+            />
+          </div>
+        )}
+        <main id="main" ref={mainRef} tabIndex={-1} className={styles.page}>
+          {/* Keyed by route: navigating away always clears a page error */}
+          <PageBoundary key={pathname}>
+            <Outlet />
+          </PageBoundary>
+        </main>
+      </div>
+
+      {layout === 'field' && (
+        <BottomNav active={active} badges={data.badges} criticalOpen={criticalOpen} onOpenMenu={() => setNavOpen(true)} />
+      )}
+
+      <NavDrawer
+        open={navOpen && compact}
+        onOpenChange={setNavOpen}
+        active={active}
+        badges={data.badges}
+        criticalOpen={criticalOpen}
+      />
+
+      <GlassCommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />
 
       {/* Toast overlay — fixed, outside grid flow */}
       <ToastContainer />

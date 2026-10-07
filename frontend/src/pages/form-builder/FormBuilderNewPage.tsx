@@ -18,6 +18,8 @@ import {
   type FormSchema,
   type FormAssociation,
 } from '../../api/form-builder.api';
+import { GlassModal, GlassSelect } from '../../components/glass';
+import SchemaChangeReview from '../../components/form-builder/SchemaChangeReview';
 
 // ── Constants ─────────────────────────────────────────────────
 
@@ -142,7 +144,7 @@ function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { bg: string; color: string }> = {
     draft:     { bg: 'rgba(255,180,0,0.15)',   color: '#ffb400'                  },
     published: { bg: 'rgba(0,194,168,0.15)',   color: 'var(--color-teal)'        },
-    archived:  { bg: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.40)'   },
+    archived:  { bg: 'rgba(255,255,255,0.08)', color: 'var(--text-muted)'   },
   };
   const c = map[status] ?? map.draft;
   return (
@@ -246,7 +248,7 @@ function FormField({ label, children, small }: {
     <div style={{ marginBottom: small ? 8 : 12 }}>
       <label style={{
         display: 'block', fontSize: 10, fontWeight: 600,
-        fontFamily: 'var(--font-display)', color: 'rgba(255,255,255,0.50)',
+        fontFamily: 'var(--font-display)', color: 'var(--text-muted)',
         marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: '0.08em',
       }}>
         {label}
@@ -272,7 +274,7 @@ function Toggle({ label, description, checked, onChange }: {
         <div style={{
           position: 'absolute', top: 2, left: checked ? 16 : 2,
           width: 14, height: 14, borderRadius: 7,
-          background: 'white', transition: 'left 150ms',
+          background: 'var(--surface)', transition: 'left 150ms',
         }} />
       </div>
       <div>
@@ -282,7 +284,7 @@ function Toggle({ label, description, checked, onChange }: {
         }}>
           {label}
         </div>
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.30)', fontFamily: 'var(--font-display)' }}>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-display)' }}>
           {description}
         </div>
       </div>
@@ -296,51 +298,11 @@ function Modal({ title, width = 480, children, onClose }: {
   children: React.ReactNode;
   onClose:  () => void;
 }) {
+  const size = width <= 440 ? 'sm' : width <= 600 ? 'md' : width <= 760 ? 'lg' : 'xl';
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.60)',
-        zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          width, maxWidth: 'calc(100vw - 48px)',
-          maxHeight: 'calc(100vh - 80px)',
-          display: 'flex', flexDirection: 'column',
-          background: 'var(--color-surface)',
-          borderRadius: 10, border: '1px solid var(--color-border)',
-          boxShadow: 'var(--shadow-panel)', overflow: 'hidden',
-        }}
-      >
-        <div style={{
-          display: 'flex', alignItems: 'center',
-          padding: '14px 16px', borderBottom: '1px solid var(--color-border)',
-          flexShrink: 0,
-        }}>
-          <div style={{
-            flex: 1, fontSize: 14, fontWeight: 700,
-            fontFamily: 'var(--font-display)', color: 'var(--chalk1)',
-          }}>
-            {title}
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'rgba(255,255,255,0.40)', fontSize: 20, lineHeight: 1, padding: 4,
-            }}
-          >
-            ×
-          </button>
-        </div>
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {children}
-        </div>
-      </div>
-    </div>
+    <GlassModal open onClose={onClose} title={title} size={size}>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>{children}</div>
+    </GlassModal>
   );
 }
 
@@ -383,14 +345,14 @@ function VersionHistoryModal({
           overflowY: 'auto', scrollbarWidth: 'thin' as const,
         }}>
           {versionsQ.isLoading && (
-            <div style={{ padding: 16, fontSize: 12, color: 'rgba(255,255,255,0.30)', fontFamily: 'var(--font-display)' }}>
+            <div style={{ padding: 16, fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-display)' }}>
               Loading versions…
             </div>
           )}
           {!versionsQ.isLoading && versions.length === 0 && (
             <div style={{
               padding: '32px 16px', textAlign: 'center',
-              fontSize: 12, color: 'rgba(255,255,255,0.28)', fontFamily: 'var(--font-display)',
+              fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-display)',
             }}>
               No published versions yet.
             </div>
@@ -436,7 +398,7 @@ function VersionHistoryModal({
                 )}
               </div>
               <div style={{
-                fontSize: 11, color: 'rgba(255,255,255,0.40)', fontFamily: 'var(--font-display)',
+                fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-display)',
               }}>
                 {fmtDate(v.published_at)}
               </div>
@@ -448,7 +410,7 @@ function VersionHistoryModal({
                   {v.changelog}
                 </div>
               )}
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.30)', fontFamily: 'var(--font-display)' }}>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-display)' }}>
                 {(v.field_snapshot?.length ?? 0)} fields
               </div>
             </button>
@@ -461,14 +423,14 @@ function VersionHistoryModal({
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               height: '100%',
-              fontSize: 12, color: 'rgba(255,255,255,0.22)', fontFamily: 'var(--font-display)',
+              fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-display)',
             }}>
               Select a version to view its field snapshot
             </div>
           )}
 
           {selectedVersionId && snapshotQ.isLoading && (
-            <div style={{ padding: 16, fontSize: 12, color: 'rgba(255,255,255,0.30)', fontFamily: 'var(--font-display)' }}>
+            <div style={{ padding: 16, fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-display)' }}>
               Loading snapshot…
             </div>
           )}
@@ -490,7 +452,7 @@ function VersionHistoryModal({
                   Version {snapshot.version_number} — Immutable Snapshot
                 </div>
                 <div style={{
-                  fontSize: 11, color: 'rgba(255,255,255,0.40)',
+                  fontSize: 11, color: 'var(--text-muted)',
                   fontFamily: 'var(--font-display)', display: 'flex', gap: 16,
                 }}>
                   <span>Published: {fmtDate(snapshot.published_at)}</span>
@@ -509,7 +471,7 @@ function VersionHistoryModal({
               {/* Snapshot fields (read-only) */}
               {snapFields.length === 0 && (
                 <div style={{
-                  fontSize: 12, color: 'rgba(255,255,255,0.28)',
+                  fontSize: 12, color: 'var(--text-muted)',
                   fontFamily: 'var(--font-display)',
                 }}>
                   No fields in this snapshot.
@@ -536,7 +498,7 @@ function VersionHistoryModal({
                       )}
                     </div>
                     <div style={{
-                      fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'monospace',
+                      fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace',
                     }}>
                       {field.field_key} · {field.field_type}
                     </div>
@@ -578,7 +540,7 @@ function FieldTypePalette({
         padding: '12px 12px 6px',
         fontSize: 10, fontWeight: 700,
         fontFamily: 'var(--font-display)',
-        color: 'rgba(255,255,255,0.35)',
+        color: 'var(--text-muted)',
         letterSpacing: '0.12em', textTransform: 'uppercase' as const,
       }}>
         Field Types
@@ -603,7 +565,7 @@ function FieldTypePalette({
               padding: '6px 12px 3px',
               fontSize: 9, fontWeight: 700,
               fontFamily: 'var(--font-display)',
-              color: 'rgba(255,255,255,0.28)',
+              color: 'var(--text-muted)',
               letterSpacing: '0.10em', textTransform: 'uppercase' as const,
             }}>
               {CATEGORY_LABELS[cat] ?? cat}
@@ -694,7 +656,7 @@ function FieldCard({
             <span style={{ color: '#ff5a5a', marginLeft: 3, fontSize: 11 }}>*</span>
           )}
         </div>
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.38)', fontFamily: 'monospace' }}>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
           {field.field_key} · {field.field_type}
         </div>
       </div>
@@ -731,7 +693,7 @@ function SchemaCanvas({
         flex: 1, display: 'flex',
         alignItems: 'center', justifyContent: 'center',
         flexDirection: 'column', gap: 10,
-        color: 'rgba(255,255,255,0.22)',
+        color: 'var(--text-muted)',
         fontFamily: 'var(--font-display)', fontSize: 13,
       }}>
         <svg width={44} height={44} viewBox="0 0 16 16" fill="none"
@@ -759,7 +721,7 @@ function SchemaCanvas({
         }}>
           {schema.name}
         </div>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.38)', fontFamily: 'var(--font-display)' }}>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-display)' }}>
           v{schema.current_version} · {schema.module} · {fields.length} field{fields.length !== 1 ? 's' : ''}
           {schema.machine_name && (
             <span style={{ fontFamily: 'monospace', marginLeft: 6, opacity: 0.7 }}>
@@ -775,7 +737,7 @@ function SchemaCanvas({
       }}>
         {loading && (
           <div style={{
-            color: 'rgba(255,255,255,0.30)', fontSize: 12, fontFamily: 'var(--font-display)',
+            color: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--font-display)',
           }}>
             Loading fields…
           </div>
@@ -783,7 +745,7 @@ function SchemaCanvas({
         {!loading && fields.length === 0 && (
           <div style={{
             textAlign: 'center', padding: '52px 0',
-            color: 'rgba(255,255,255,0.22)',
+            color: 'var(--text-muted)',
             fontFamily: 'var(--font-display)', fontSize: 13,
           }}>
             {schema.status === 'archived'
@@ -856,7 +818,7 @@ function FieldConfigDrawer({
         borderLeft: '1px solid var(--color-border)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         flexDirection: 'column', gap: 10,
-        color: 'rgba(255,255,255,0.20)',
+        color: 'var(--text-muted)',
         fontFamily: 'var(--font-display)', fontSize: 12,
         background: 'var(--color-surface)',
       }}>
@@ -912,7 +874,7 @@ function FieldConfigDrawer({
           }}>
             Configure Field
           </div>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.38)', fontFamily: 'monospace' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
             {field.field_key} · {field.field_type}
           </div>
         </div>
@@ -920,7 +882,7 @@ function FieldConfigDrawer({
           onClick={onClose}
           style={{
             background: 'none', border: 'none', cursor: 'pointer',
-            color: 'rgba(255,255,255,0.40)', fontSize: 20, lineHeight: 1, padding: 4,
+            color: 'var(--text-muted)', fontSize: 20, lineHeight: 1, padding: 4,
           }}
         >
           ×
@@ -961,15 +923,7 @@ function FieldConfigDrawer({
           />
         </FormField>
         <FormField label="Width">
-          <select
-            style={inputStyle}
-            value={(draft.width ?? 'full') as string}
-            onChange={e => set('width', e.target.value)}
-          >
-            {WIDTH_OPTIONS.map(w => (
-              <option key={w.value} value={w.value}>{w.label}</option>
-            ))}
-          </select>
+          <GlassSelect value={String((draft.width ?? 'full') as string)} onChange={v => set('width', v)} options={[...WIDTH_OPTIONS.map((w) => ({ value: String(w.value), label: String(w.label) }))]} ariaLabel="Field width" />
         </FormField>
 
         {/* Behaviour toggles */}
@@ -977,7 +931,7 @@ function FieldConfigDrawer({
           <div style={{
             fontSize: 10, fontWeight: 700,
             fontFamily: 'var(--font-display)',
-            color: 'rgba(255,255,255,0.38)',
+            color: 'var(--text-muted)',
             letterSpacing: '0.10em', textTransform: 'uppercase' as const,
             marginBottom: 6,
           }}>
@@ -1009,7 +963,7 @@ function FieldConfigDrawer({
             <div style={{
               fontSize: 10, fontWeight: 700,
               fontFamily: 'var(--font-display)',
-              color: 'rgba(255,255,255,0.38)',
+              color: 'var(--text-muted)',
               letterSpacing: '0.10em', textTransform: 'uppercase' as const,
               marginBottom: 6,
             }}>
@@ -1044,7 +998,7 @@ function FieldConfigDrawer({
                 </div>
               ))}
               {((draft.options ?? []) as string[]).length === 0 && (
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', fontFamily: 'var(--font-display)' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-display)' }}>
                   No options yet
                 </div>
               )}
@@ -1058,7 +1012,7 @@ function FieldConfigDrawer({
             <div style={{
               fontSize: 10, fontWeight: 700,
               fontFamily: 'var(--font-display)',
-              color: 'rgba(255,255,255,0.38)',
+              color: 'var(--text-muted)',
               letterSpacing: '0.10em', textTransform: 'uppercase' as const,
               marginBottom: 6,
             }}>
@@ -1230,7 +1184,7 @@ function AssociationsPanel({
           onClick={showForm ? closeForm : onClose}
           style={{
             marginLeft: 8, background: 'none', border: 'none', cursor: 'pointer',
-            color: 'rgba(255,255,255,0.40)', fontSize: 20, lineHeight: 1, padding: 4,
+            color: 'var(--text-muted)', fontSize: 20, lineHeight: 1, padding: 4,
           }}
         >
           {showForm ? '←' : '×'}
@@ -1242,23 +1196,14 @@ function AssociationsPanel({
         <div style={{ flex: 1, overflowY: 'auto', padding: 14, scrollbarWidth: 'thin' as const }}>
           <div style={{
             fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-display)',
-            color: 'rgba(255,255,255,0.35)', marginBottom: 12,
+            color: 'var(--text-muted)', marginBottom: 12,
             textTransform: 'uppercase' as const, letterSpacing: '.08em',
           }}>
             {isEditing ? 'Edit Association' : 'New Association'}
           </div>
 
           <FormField label="Context Type">
-            <select
-              style={inputStyle}
-              value={form.context_type}
-              disabled={isEditing}
-              onChange={e => setForm(f => ({ ...f, context_type: e.target.value }))}
-            >
-              {CONTEXT_TYPE_OPTIONS.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+            <GlassSelect value={String(form.context_type)} onChange={v => setForm(f => ({ ...f, context_type: v }))} options={[...CONTEXT_TYPE_OPTIONS.map((o) => ({ value: String(o.value), label: String(o.label) }))]} disabled={isEditing} ariaLabel="Context type" />
           </FormField>
 
           {!isEditing && (
@@ -1282,16 +1227,7 @@ function AssociationsPanel({
           </FormField>
 
           <FormField label="Trigger Event">
-            <select
-              style={inputStyle}
-              value={form.trigger_event}
-              onChange={e => setForm(f => ({ ...f, trigger_event: e.target.value }))}
-            >
-              <option value="">— None —</option>
-              {TRIGGER_EVENT_OPTIONS.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+            <GlassSelect value={String(form.trigger_event)} onChange={v => setForm(f => ({ ...f, trigger_event: v }))} options={[...TRIGGER_EVENT_OPTIONS.map((o) => ({ value: String(o.value), label: String(o.label) }))]} placeholder={'— None —'} ariaLabel="Trigger event" />
           </FormField>
 
           <FormField label="Display Order">
@@ -1337,14 +1273,14 @@ function AssociationsPanel({
       {!showForm && (
         <div style={{ flex: 1, overflowY: 'auto', padding: 14, scrollbarWidth: 'thin' as const }}>
           {assocsQ.isLoading && (
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.30)', fontFamily: 'var(--font-display)' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-display)' }}>
               Loading…
             </div>
           )}
           {!assocsQ.isLoading && associations.length === 0 && (
             <div style={{
               textAlign: 'center', padding: '36px 0',
-              fontSize: 12, color: 'rgba(255,255,255,0.25)', fontFamily: 'var(--font-display)',
+              fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-display)',
             }}>
               No associations yet.
               <br />
@@ -1376,7 +1312,7 @@ function AssociationsPanel({
                   {a.context_id && (
                     <div style={{
                       fontSize: 9, fontFamily: 'monospace',
-                      color: 'rgba(255,255,255,0.28)', marginTop: 3,
+                      color: 'var(--text-muted)', marginTop: 3,
                     }}>
                       {a.context_id.slice(0, 8)}…
                     </div>
@@ -1433,16 +1369,7 @@ function TopBar({
         Form Builder
       </div>
 
-      <select
-        style={{ ...inputStyle, width: 240, flex: 'none' as const }}
-        value={selectedId ?? ''}
-        onChange={e => e.target.value && onSelectSchema(e.target.value)}
-      >
-        <option value="">— Select a schema —</option>
-        {schemas.map(s => (
-          <option key={s.id} value={s.id}>{s.name}</option>
-        ))}
-      </select>
+      <GlassSelect value={String(selectedId ?? '')} onChange={v => v && onSelectSchema(v)} options={[...schemas.map((s) => ({ value: String(s.id), label: String(s.name) }))]} placeholder={'— Select a schema —'} ariaLabel="Form schema" compact />
 
       {schema && <StatusBadge status={schema.status} />}
 
@@ -1659,10 +1586,11 @@ export default function FormBuilderNewPage() {
   // ── Render ───────────────────────────────────────────────────
 
   return (
-    <div style={{
+    <div data-surface="console" style={{
       display: 'flex', flexDirection: 'column',
       height: '100%', background: 'var(--color-surface)', overflow: 'hidden',
     }}>
+      <h1 className="sr-only">Form builder</h1>
       <TopBar
         schemas={schemas}
         selectedId={selectedId}
@@ -1681,6 +1609,14 @@ export default function FormBuilderNewPage() {
         onAssociations={() => { setShowAssociations(v => !v); setEditingField(null); }}
         archiving={archiveMut.isPending}
       />
+
+      {/* ── Pending structural changes → dynamic DDL ────────── */}
+      {selectedId && schema && (
+        <SchemaChangeReview
+          schemaId={selectedId}
+          enabled={schema.status !== 'archived'}
+        />
+      )}
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <FieldTypePalette
@@ -1747,22 +1683,14 @@ export default function FormBuilderNewPage() {
                 }))}
               />
               <div style={{
-                fontSize: 10, color: 'rgba(255,255,255,0.35)',
+                fontSize: 10, color: 'var(--text-muted)',
                 fontFamily: 'var(--font-display)', marginTop: 3,
               }}>
                 Lowercase letters, numbers and underscores only. Must start with a letter.
               </div>
             </FormField>
             <FormField label="Module">
-              <select
-                style={inputStyle}
-                value={createForm.module}
-                onChange={e => setCreateForm(f => ({ ...f, module: e.target.value }))}
-              >
-                {MODULES.map(m => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
-              </select>
+              <GlassSelect value={String(createForm.module)} onChange={v => setCreateForm(f => ({ ...f, module: v }))} options={[...MODULES.map((m) => ({ value: String(m.value), label: String(m.label) }))]} ariaLabel="Module" />
             </FormField>
             <FormField label="Description (optional)">
               <textarea
