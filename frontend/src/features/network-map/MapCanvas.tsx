@@ -85,6 +85,7 @@ export function MapCanvas({ basemap, className, children, label, onMapChange }: 
         : { url }),
       style: {
         version: 8,
+        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
         sources: {
           [BASEMAP_SOURCE]: {
             type: 'raster', tiles: [src.url], tileSize: 256, maxzoom: src.maxNativeZoom,

@@ -25,6 +25,7 @@
 from __future__ import annotations
 
 import base64
+import copy
 import datetime
 import os
 import re
@@ -35,7 +36,7 @@ from typing import Any, Dict, List, Optional
 from celery.result import AsyncResult
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -59,6 +60,10 @@ _REQUIRED_LAYER_KEYS = {"road", "homepass", "pole"}
 class RunCreate(BaseModel):
     name: Optional[str] = None
     config: Dict[str, Any] = {}
+
+
+class RunRerunIn(BaseModel):
+    config_overrides: Dict[str, Any] = Field(default_factory=dict)
 
 
 class RunOut(BaseModel):
@@ -440,6 +445,66 @@ async def execute_run(
     await db.commit()
     await db.refresh(run)
     return RunOut.from_orm_obj(run)
+
+
+@router.post("/fttx-designer/runs/{run_id}/rerun", status_code=status.HTTP_201_CREATED, response_model=RunOut)
+async def rerun_failed_run(
+    run_id: uuid.UUID,
+    payload: Optional[RunRerunIn] = None,
+    db: AsyncSession = Depends(get_db),
+    caller: User = Depends(check_permission("fttx_designer.edit")),
+) -> RunOut:
+    """Create and queue a new run from a failed run's saved config and layers."""
+    source = await _get_run_or_404(db, run_id)
+    if source.tenant_id != caller.tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="FTTx design run not found")
+    if source.status != "failed":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only failed runs can be rerun")
+
+    source_layers = (await db.execute(
+        select(FttxDesignRunLayer).where(FttxDesignRunLayer.run_id == source.id)
+    )).scalars().all()
+    if not _REQUIRED_LAYER_KEYS.issubset({layer.layer_key for layer in source_layers}):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="The failed run is missing required input layers")
+
+    rerun_config = copy.deepcopy(source.config or {})
+    config_overrides = (payload.config_overrides if payload else {}) or {}
+    unsupported_overrides = set(config_overrides) - {"allow_documented_b2b_exceptions"}
+    if unsupported_overrides:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Unsupported rerun config override(s): {sorted(unsupported_overrides)}",
+        )
+    rerun_config.update(config_overrides)
+    try:
+        config_from_dict(rerun_config)
+    except InvalidFttxConfigError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+    run = FttxDesignRun(
+        tenant_id=caller.tenant_id,
+        name=f"{(source.name or 'FTTx design')[:190]} (rerun)",
+        status="queued",
+        config=rerun_config,
+        created_by=caller.id,
+    )
+    db.add(run)
+    await db.flush()
+    for layer in source_layers:
+        db.add(FttxDesignRunLayer(
+            run_id=run.id,
+            tenant_id=caller.tenant_id,
+            layer_key=layer.layer_key,
+            original_filename=layer.original_filename,
+            feature_count=layer.feature_count,
+            geojson=copy.deepcopy(layer.geojson),
+            uploaded_by=caller.id,
+        ))
+    async_result: AsyncResult = run_fttx_design_task.delay(str(run.id))
+    run.celery_task_id = async_result.id
+    await db.commit()
+    await db.refresh(run)
+    return RunOut.from_orm_obj(run, uploaded_layer_keys=[layer.layer_key for layer in source_layers])
 
 
 @router.get("/fttx-designer/runs/{run_id}/status", response_model=RunStatusOut)

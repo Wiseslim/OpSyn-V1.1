@@ -185,6 +185,9 @@ export const fttxDesignerApi = {
   executeRun: (runId: string) =>
     apiClient.post<FttxDesignRun>(`/fttx-designer/runs/${runId}/execute`).then(r => r.data),
 
+  rerunFailedRun: (runId: string, configOverrides: Record<string, unknown> = {}) =>
+    apiClient.post<FttxDesignRun>(`/fttx-designer/runs/${runId}/rerun`, { config_overrides: configOverrides }).then(r => r.data),
+
   getStatus: (runId: string) =>
     apiClient.get<FttxRunStatus>(`/fttx-designer/runs/${runId}/status`).then(r => r.data),
 

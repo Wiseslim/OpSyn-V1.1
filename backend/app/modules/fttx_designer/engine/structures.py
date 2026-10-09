@@ -396,6 +396,133 @@ def propose_aerial_poles(
     return proposed
 
 
+def propose_poles_at_cable_turns(
+    fdts: List[FDT],
+    fats: List[FAT],
+    cable_router,
+    structures: List[SupportStructure],
+    roads: Dict[int, 'RoadSegment'],
+    dist_calc: 'DistanceCalculator',
+    logger: 'PerformanceLogger',
+    support_radius_m: float = 12.0,
+    turn_threshold_deg: float = 40.0,
+) -> List[SupportStructure]:
+    """Propose supports at turns on the actual planned B2B road paths.
+
+    Only turns used by a cable route are considered. Existing and already
+    proposed poles satisfy the corner; an unsupported turn gets a proposed
+    pole that is then included in the pole-to-pole graph.
+    """
+    from .hop_limits import _b2b_endpoint
+
+    existing_poles = [s for s in structures if s.structure_type.lower() == "pole"]
+    proposed: List[SupportStructure] = []
+    next_id = max((structure.id for structure in structures), default=-1) + 1
+    original_stats = dict(getattr(cable_router, "route_stats", {}))
+    original_failures = list(getattr(cable_router, "route_failures", []))
+    original_anchor_misses = list(getattr(cable_router, "route_anchor_misses", []))
+
+    def _has_support(point: QgsPointXY) -> bool:
+        return any(
+            dist_calc.distance_points(point, support.geometry) <= support_radius_m
+            for support in [*existing_poles, *proposed]
+        )
+
+    def _turn_angle(before: QgsPointXY, corner: QgsPointXY, after: QgsPointXY) -> float:
+        incoming = (corner.x() - before.x(), corner.y() - before.y())
+        outgoing = (after.x() - corner.x(), after.y() - corner.y())
+        if math.hypot(*incoming) <= 1e-12 or math.hypot(*outgoing) <= 1e-12:
+            return 0.0
+        cross = incoming[0] * outgoing[1] - incoming[1] * outgoing[0]
+        dot = incoming[0] * outgoing[0] + incoming[1] * outgoing[1]
+        return abs(math.degrees(math.atan2(cross, dot)))
+
+    fat_by_name = {fat.name: fat for fat in fats}
+    try:
+        for fdt in fdts:
+            fdt_road_id = fdt.primary_road_id
+            if fdt_road_id is None and fdt.fats:
+                from collections import Counter
+                fdt_road_id = Counter(fat.road_id for fat in fdt.fats).most_common(1)[0][0]
+
+            wings = sorted({fat.wing for fat in fdt.fats})
+            for wing in wings:
+                wing_fats = [fat for fat in fdt.fats if fat.wing == wing]
+                if not wing_fats:
+                    continue
+                owned = {id(fat) for fat in wing_fats}
+                head = next((fat for fat in wing_fats if fat.from_device == fdt.name), None)
+                ordered = [head] if head else []
+                while ordered and ordered[-1].to_device:
+                    next_fat = fat_by_name.get(ordered[-1].to_device)
+                    if next_fat is None or id(next_fat) not in owned or next_fat in ordered:
+                        break
+                    ordered.append(next_fat)
+                if len(ordered) < len(wing_fats):
+                    remaining = [fat for fat in wing_fats if fat not in ordered]
+                    anchor = fdt.snapped_geometry or fdt.geometry
+                    remaining.sort(key=lambda fat: (
+                        (fat.snapped_geometry or fat.geometry).x() - anchor.x()
+                    ) ** 2 + (
+                        (fat.snapped_geometry or fat.geometry).y() - anchor.y()
+                    ) ** 2)
+                    ordered.extend(remaining)
+
+                previous_point = fdt.snapped_geometry or fdt.geometry
+                previous_road_id = fdt_road_id
+                for fat in ordered:
+                    end_point = _b2b_endpoint(fat)
+                    result = cable_router.find_shortest_path_points(
+                        previous_point,
+                        end_point,
+                        start_road_id=previous_road_id,
+                        end_road_id=fat.road_id,
+                    )
+                    geometry = result[0] if result else None
+                    vertices = geometry.asPolyline() if geometry and not geometry.isEmpty() else []
+                    for index in range(1, len(vertices) - 1):
+                        corner = vertices[index]
+                        # Endpoint stubs terminate at already-mounted devices;
+                        # only intermediate route turns need another support.
+                        if index == 1 or index == len(vertices) - 2:
+                            continue
+                        turn_deg = _turn_angle(
+                            vertices[index - 1], corner, vertices[index + 1]
+                        )
+                        if turn_deg < turn_threshold_deg or turn_deg >= 150.0:
+                            continue
+                        if _has_support(corner):
+                            continue
+                        pole = PoleStructure(
+                            id=next_id,
+                            geometry=corner,
+                            status="proposed",
+                            remarks=(
+                                f"pole-proposed: supports {fat.from_device or fdt.name} "
+                                f"to {fat.name} B2B turn ({turn_deg:.0f} degrees)"
+                            ),
+                        )
+                        proposed.append(pole)
+                        next_id += 1
+                        logger.log(
+                            f"[POLE_PROPOSED_CORNER] {fdt.name} Wing {wing}, "
+                            f"hop to {fat.name}: {turn_deg:.0f} degree turn had no "
+                            f"support within {support_radius_m:.0f}m."
+                        )
+                    previous_point = end_point
+                    previous_road_id = fat.road_id
+    finally:
+        if hasattr(cable_router, "route_stats"):
+            cable_router.route_stats = original_stats
+        if hasattr(cable_router, "route_failures"):
+            cable_router.route_failures = original_failures
+        if hasattr(cable_router, "route_anchor_misses"):
+            cable_router.route_anchor_misses = original_anchor_misses
+
+    logger.log(f"propose_poles_at_cable_turns: {len(proposed)} support pole(s) proposed.")
+    return proposed
+
+
 def snap_to_structures(fdts: List[FDT],
                        fats: List[FAT],
                        homepasses: List[Homepass],

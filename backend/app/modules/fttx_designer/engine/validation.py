@@ -353,7 +353,31 @@ def audit_b2b_detours(b2b_cables: List['CableSegment'],
     return suspects
 
 
-def validate_box_to_box_cable_constraints(b2b_cables: List[CableSegment], logger: PerformanceLogger):
+def validate_b2b_detours(suspects: List[Dict]) -> None:
+    """Fail the design when a routed B2B cable is an implausible detour.
+
+    These graph-cut signatures must be resolved before optical and BOQ output
+    is treated as a valid design. They cannot be waived as length exceptions.
+    """
+    if not suspects:
+        return
+    details = "\n".join(
+        f"  {row['name']}: routed {row['routed']:.2f}m, "
+        f"straight {row['straight']:.2f}m ({row['ratio']:.2f}x)"
+        for row in suspects
+    )
+    raise ValidationError(
+        f"[B2B_GRAPH_DETOUR] {len(suspects)} box-to-box route(s) have "
+        f"implausible detours. Correct the road graph or device anchors "
+        f"before accepting this design:\n{details}"
+    )
+
+
+def validate_box_to_box_cable_constraints(
+    b2b_cables: List[CableSegment],
+    logger: PerformanceLogger,
+    allow_documented_exceptions: Optional[bool] = None,
+):
     """Hard validation: every FDT->FAT (or FAT->FAT PCC hop) box-to-box cable
     must be <= MAX_BOX_TO_BOX_DISTANCE.
 
@@ -427,12 +451,15 @@ def validate_box_to_box_cable_constraints(b2b_cables: List[CableSegment], logger
             f"  3. Check the log for '[WING_HOP_UNFIXABLE_BY_ORDER]', "
             f"'[B2B-OBJECTIVE]' and 'CHAIN-REPAIR unresolved' lines naming "
             f"these FDTs/FATs\n"
-            f"  4. If the gap is real and unavoidable, set "
-            f"ALLOW_DOCUMENTED_B2B_EXCEPTIONS = True to complete the design "
-            f"with these hops registered as costed engineering exceptions"
+            f"  4. If the gap is real and unavoidable, enable "
+            f"allow_documented_b2b_exceptions for this run to complete the "
+            f"design with these hops registered as costed engineering exceptions"
         )
 
-        if not ALLOW_DOCUMENTED_B2B_EXCEPTIONS:
+        allow_exceptions = (ALLOW_DOCUMENTED_B2B_EXCEPTIONS
+                            if allow_documented_exceptions is None
+                            else allow_documented_exceptions)
+        if not allow_exceptions:
             raise ValidationError(summary)
 
         # [Fix 8] Exception mode. The design completes, but nothing is hidden:
@@ -452,7 +479,7 @@ def validate_box_to_box_cable_constraints(b2b_cables: List[CableSegment], logger
         logger.log(
             "WARNING [B2B_LENGTH_EXCEPTION] "
             + summary
-            + f"\n\nALLOW_DOCUMENTED_B2B_EXCEPTIONS is True: continuing with "
+            + f"\n\nDocumented B2B exceptions are enabled for this run: continuing with "
               f"{len(violations)} cable(s) flagged length_exception=True. "
               f"These require engineering sign-off before build."
         )

@@ -75,6 +75,7 @@ from .closures import (
     route_pickup_to_closure,
 )
 from .config import (
+    B2BRoutingMode,
     MAX_MOVES_PER_FAT,
     SCRIPT_VERSION,
     CapacityProfile,
@@ -85,7 +86,7 @@ from .config import (
 )
 from .distance_oracle import clear_distance_oracle, install_distance_oracle
 from .domain import CableSegment, DomeClosure, FAT, FDT, Homepass, RoadSegment, SupportStructure
-from .errors import DesignCancelledError, LayerNotFoundError
+from .errors import DesignCancelledError, LayerNotFoundError, ValidationError
 from .fat_generation import _rebalance_fats_for_capacity, generate_fats
 from .fdt_generation import generate_fdts
 from .geometry_compat import QgsCoordinateReferenceSystem, QgsPointXY, QgsVectorLayer
@@ -107,7 +108,13 @@ from .strategies.aerial import AerialStrategy
 from .strategies.base import DeploymentStrategy
 from .strategies.duct_occupancy import DuctOccupancyLedger
 from .street_utils import _build_road_to_street_map, _build_street_bboxes
-from .structures import _restamp_snapped_structure_names, assign_pole_tags, propose_aerial_poles, snap_to_structures
+from .structures import (
+    _restamp_snapped_structure_names,
+    assign_pole_tags,
+    propose_aerial_poles,
+    propose_poles_at_cable_turns,
+    snap_to_structures,
+)
 from .topology import RoadTopologyEngine, process_roads
 from .validation import (
     audit_b2b_detours,
@@ -115,6 +122,7 @@ from .validation import (
     log_final_capacity_audit,
     validate_all_wing_chain_graphs,
     validate_box_to_box_cable_constraints,
+    validate_b2b_detours,
     validate_capacity_and_absorption_model,
     validate_drop_cable_constraints,
     validate_fat_fdt_ownership,
@@ -160,6 +168,7 @@ _OUTPUT_LAYER_SCHEMAS: Dict[str, List[str]] = {
     "b2b": [
         "name", "start_device", "end_device", "cable_length", "fdt_id", "cable_arch",
         "fdt_port", "tap_sequence", "cable_type", "wing", "wing_name",
+        "length_exception", "length_limit_m", "length_excess_m", "exception_cost_estimate",
     ],
     "b2c": ["name", "fat_name", "customer_id", "cable_length"],
     "boq": [
@@ -203,6 +212,8 @@ _OUTPUT_LAYER_DISPLAY_NAMES: Dict[str, str] = {
     "pickup_point": "Pickup_Point", "feeder": "Feeder_Cable",
     "closure_cable": "Closure_to_FDT", "boq_fdt": "BOQ_FDT_Detail",
 }
+
+OPSYN_FTTX_ENGINE_BUILD = "opsyn-fttx-road-or-pole-routing-2026-10-09"
 
 
 def _build_output_layers(crs: 'QgsCoordinateReferenceSystem') -> Dict[str, QgsVectorLayer]:
@@ -323,6 +334,7 @@ def run_fttx_design(config: Optional[FTTXConfig] = None,
     try:
         logger = PerformanceLogger()
         logger.log(f"Script version: {SCRIPT_VERSION}")
+        logger.log(f"OpSyn FTTx engine build: {OPSYN_FTTX_ENGINE_BUILD}")
         logger.log("=" * 60)
         logger.log("Starting FTTX Network Design Automation")
         logger.log("=" * 60)
@@ -408,7 +420,12 @@ def run_fttx_design(config: Optional[FTTXConfig] = None,
         cable_router.build_graph()
 
         def _collect_master_points(_fats, _fdts=None) -> List[QgsPointXY]:
-            """Every anchor a cable might terminate on, deduped."""
+            """Collect the device position variants the reference route flow uses.
+
+            Must use the SAME endpoint resolution logic as routing (via
+            _b2b_endpoint) to ensure lookup keys match what routing queries.
+            """
+            from .hop_limits import _b2b_endpoint
             _pts: List[QgsPointXY] = []
             _seen = set()
 
@@ -421,18 +438,29 @@ def run_fttx_design(config: Optional[FTTXConfig] = None,
                     _pts.append(_p)
 
             for _fat in (_fats or []):
-                _add(getattr(_fat, 'offset_geometry', None))
-                _add(getattr(_fat, 'snapped_geometry', None))
-                _add(getattr(_fat, 'geometry', None))
+                _add(_b2b_endpoint(_fat))
             for _fdt in (_fdts or []):
-                _add(getattr(_fdt, 'snapped_geometry', None))
-                _add(getattr(_fdt, 'geometry', None))
+                _add(_b2b_endpoint(_fdt))
             return _pts
 
-        _oracle_pts = _collect_master_points(fats)
+        # This first graph is built before snap_to_structures(). At this stage
+        # FAT.geometry is the only valid position; do not add future snap/offset
+        # variants or synthetic road projections to its anchor set.
+        _oracle_pts = [fat.geometry for fat in fats if getattr(fat, 'geometry', None) is not None]
+        if len(_oracle_pts) != len(fats):
+            raise ValidationError(
+                f"[INITIAL_GRAPH_ANCHORS] Expected one geometry anchor per FAT; "
+                f"found {len(_oracle_pts)} for {len(fats)} FATs."
+            )
         _distance_oracle = None
         if _oracle_pts:
             _n_tied = cable_router.build_master_graph(_oracle_pts)
+            if _n_tied != len(fats):
+                raise ValidationError(
+                    f"[INITIAL_GRAPH_ANCHORS] Tied {_n_tied} anchors for "
+                    f"{len(fats)} FATs; the initial graph must have exactly "
+                    f"one anchor per FAT."
+                )
             if _n_tied:
                 _distance_oracle = NetworkDistanceOracle(
                     cable_router, dist_calc=dist_calc, logger=logger)
@@ -637,13 +665,33 @@ def run_fttx_design(config: Optional[FTTXConfig] = None,
             fdts, fats, homepasses, structures, roads, dist_calc, logger
         )
 
+        # For selected pole-to-pole routing, inspect the actual planned road
+        # paths after devices are snapped. Any intermediate turn without an
+        # existing or previously proposed pole gets a proposed corner support
+        # before the final pole graph is built.
+        if (
+            config.deployment_type == DeploymentType.AERIAL
+            and config.b2b_routing_mode == B2BRoutingMode.POLE_TO_POLE
+            and config.allow_proposed_poles
+        ):
+            _corner_poles = propose_poles_at_cable_turns(
+                fdts, fats, cable_router, structures, roads, dist_calc, logger,
+            )
+            if _corner_poles:
+                structures = structures + _corner_poles
+
         # Cable routing via strategy
         _update_progress(95, "Cable Routing")
 
         _master_pts = _collect_master_points(
             [_fat for _fdt in fdts for _fat in _fdt.fats], fdts
         )
-
+        _max_master_pts = (3 * sum(len(_fdt.fats) for _fdt in fdts)) + (2 * len(fdts))
+        if len(_master_pts) > _max_master_pts:
+            raise ValidationError(
+                f"[FINAL_GRAPH_ANCHORS] Found {len(_master_pts)} positions; "
+                f"maximum allowed after snapping is {_max_master_pts}."
+            )
         if _master_pts:
             _n_tied = cable_router.build_master_graph(_master_pts)
             if _distance_oracle is not None:
@@ -653,6 +701,20 @@ def run_fttx_design(config: Optional[FTTXConfig] = None,
                 f"positions with {_n_tied}/{len(_master_pts)} point(s) tied in "
                 f"(replaces per-hop graph rebuilds)."
             )
+
+        cable_router.b2b_routing_mode = config.b2b_routing_mode.value
+        if config.b2b_routing_mode == B2BRoutingMode.POLE_TO_POLE:
+            _pole_edge_count = cable_router.build_support_graph(
+                structures, roads,
+                max_junction_span_m=getattr(config, "pole_max_spacing_m", 60.0),
+            )
+            logger.log(
+                f"Aerial box-to-box routing: pole-to-pole graph built with "
+                f"{len(cable_router._support_poles)} pole(s) and "
+                f"{_pole_edge_count} span(s)."
+            )
+        else:
+            logger.log("Aerial box-to-box routing: road graph (existing mode).")
 
         if hasattr(strategy, '_cable_router'):
             strategy._cable_router = cable_router
@@ -664,12 +726,39 @@ def run_fttx_design(config: Optional[FTTXConfig] = None,
         b2b_cables = strategy.route_cable(fdts, cable_router, logger, profile=profile)
 
         if _arch != CascadeArchitecture.LEGACY:
+            logger.log(f"[B2B-ROUTE-STATS] {cable_router.route_stats}")
+            _non_master_routes = (
+                cable_router.route_stats['temp_graph']
+                + cable_router.route_stats['fallback']
+            )
+            if _non_master_routes > 0:
+                _fallback_hops = cable_router.route_anchor_misses[:5]
+                logger.log(
+                    f"[B2B-MASTER-CACHE] {_non_master_routes} hop(s) used "
+                    f"successful per-hop routing instead of the cached master "
+                    f"graph. Routed hops: "
+                    f"{', '.join(_fallback_hops) if _fallback_hops else 'see routing log'}"
+                )
+            if cable_router.route_failures:
+                _failed_hops = cable_router.route_failures[:5]
+                raise ValidationError(
+                    f"[B2B_ROUTING_FAILED] {len(cable_router.route_failures)} "
+                    f"box-to-box hop(s) could not be routed. First failures: "
+                    f"{', '.join(_failed_hops)}"
+                )
+
+        if _arch != CascadeArchitecture.LEGACY:
             diagnose_b2b_headroom(fdts, b2b_cables, logger, profile=profile,
                                   dist_calc=dist_calc, topo=topo)
 
-        audit_b2b_detours(b2b_cables, dist_calc, logger)
+        _detour_suspects = audit_b2b_detours(b2b_cables, dist_calc, logger)
+        validate_b2b_detours(_detour_suspects)
 
-        validate_box_to_box_cable_constraints(b2b_cables, logger)
+        validate_box_to_box_cable_constraints(
+            b2b_cables,
+            logger,
+            allow_documented_exceptions=config.allow_documented_b2b_exceptions,
+        )
 
         if _arch != CascadeArchitecture.LEGACY:
             validate_all_wing_chain_graphs(fdts, profile)

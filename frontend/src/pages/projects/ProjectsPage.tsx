@@ -6,7 +6,7 @@
 
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { projectsApi, orgApi } from '../../api/index';
 import { Button, Badge, Select } from '../../components/ui';
 import NewTaskModal from '../tasks/components/NewTaskModal';
@@ -54,7 +54,11 @@ function Pbar({ value, color = 'var(--color-teal)' }: { value: number; color?: s
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [newNetworkOpen, setNewNetworkOpen] = useState(false);
+  const [networkName, setNetworkName] = useState('');
+  const [networkDescription, setNetworkDescription] = useState('');
 
   // ── Filters ──────────────────────────────────────────────────
   const [filterDept,   setFilterDept]   = useState('');
@@ -63,18 +67,34 @@ export default function ProjectsPage() {
 
   const { data, isLoading } = useQuery({ queryKey: ['projects'], queryFn: () => projectsApi.list() });
   const { data: depts }     = useQuery({ queryKey: ['departments'], queryFn: () => orgApi.getDepartments() });
+  const createNetworkProject = useMutation({
+    mutationFn: () => projectsApi.create({ name: networkName.trim(), description: networkDescription.trim() || undefined, project_type: 'infrastructure' }),
+    onSuccess: project => {
+      void qc.invalidateQueries({ queryKey: ['projects'] });
+      setNewNetworkOpen(false);
+      setNetworkName('');
+      setNetworkDescription('');
+      navigate(`/projects/${project.id}?tab=designs`);
+    },
+  });
 
   const projects  = toArr(data);
   const deptList  = toArr(depts);
 
+  const networkProjects = projects.filter((p: any) => p.project_type === 'infrastructure');
+  const taskProjects = projects.filter((p: any) => p.project_type !== 'infrastructure');
+  const [projectView, setProjectView] = useState<'all' | 'network' | 'tasks'>('all');
+
   const filtered = useMemo(() => {
     return projects.filter((p: any) => {
+      if (projectView === 'network' && p.project_type !== 'infrastructure') return false;
+      if (projectView === 'tasks' && p.project_type === 'infrastructure') return false;
       if (filterDept   && p.department_id !== filterDept)   return false;
       if (filterStage  && p.pipeline_stage !== filterStage) return false;
       if (filterSource && p.source_app     !== filterSource) return false;
       return true;
     });
-  }, [projects, filterDept, filterStage, filterSource]);
+  }, [projects, filterDept, filterStage, filterSource, projectView]);
 
   const sourceApps = useMemo(() => {
     const apps = new Set<string>();
@@ -88,10 +108,36 @@ export default function ProjectsPage() {
         {/* Header */}
         <PageHeader
         title="Projects"
-        lede={<>{filtered.length} of {projects.length} project{projects.length !== 1 ? 's' : ''}</>}
-        primary={<Button variant="primary" size="sm" onClick={() => setNewTaskOpen(true)} leftIcon={<Plus size={16} aria-hidden="true" />}>Create External Task
-          </Button>}
+        lede={<>{filtered.length} shown · {networkProjects.length} network · {taskProjects.length} task workflow</>}
+        primary={<div style={{ display: 'flex', gap: 8 }}>
+          <Button variant="secondary" size="sm" onClick={() => setNewNetworkOpen(v => !v)} leftIcon={<Plus size={16} aria-hidden="true" />}>New network project</Button>
+          <Button variant="primary" size="sm" onClick={() => setNewTaskOpen(true)} leftIcon={<Plus size={16} aria-hidden="true" />}>Create External Task</Button>
+        </div>}
       />
+
+        <div role="tablist" aria-label="Project types" style={{ display: 'flex', gap: 8, margin: '0 0 18px' }}>
+          {([['all', `All (${projects.length})`], ['network', `Network (${networkProjects.length})`], ['tasks', `Task workflows (${taskProjects.length})`]] as const).map(([view, label]) => (
+            <button key={view} type="button" role="tab" aria-selected={projectView === view} onClick={() => setProjectView(view)}
+              style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', color: projectView === view ? 'var(--color-teal)' : 'var(--color-text-secondary)', background: projectView === view ? 'rgba(0,194,168,.1)' : 'transparent' }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {newNetworkOpen && <form onSubmit={e => { e.preventDefault(); createNetworkProject.mutate(); }} style={{ display: 'grid', gap: 10, maxWidth: 620, padding: 16, marginBottom: 18, border: '1px solid var(--color-border)', borderRadius: 12, background: 'var(--surface)' }}>
+          <strong>Create a network design project</strong>
+          <label style={{ display: 'grid', gap: 5, fontSize: 12 }}>Project name
+            <input value={networkName} onChange={e => setNetworkName(e.target.value)} maxLength={200} required placeholder="e.g. Ikeja Phase 1 fibre rollout" />
+          </label>
+          <label style={{ display: 'grid', gap: 5, fontSize: 12 }}>Description
+            <textarea value={networkDescription} onChange={e => setNetworkDescription(e.target.value)} maxLength={2000} rows={2} placeholder="Area, scope, or delivery notes" />
+          </label>
+          {createNetworkProject.isError && <p role="alert" style={{ color: 'var(--color-red)', margin: 0 }}>{(createNetworkProject.error as any)?.response?.data?.detail ?? 'Could not create the network project.'}</p>}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button type="submit" variant="primary" size="sm" disabled={!networkName.trim() || createNetworkProject.isPending}>{createNetworkProject.isPending ? 'Creating…' : 'Create project and open designs'}</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setNewNetworkOpen(false)}>Cancel</Button>
+          </div>
+        </form>}
 
         {/* Info banner */}
         <div style={{
@@ -108,7 +154,7 @@ export default function ProjectsPage() {
         }}>
           <span style={{ fontSize: 16 }}>ℹ️</span>
           <span>
-            Projects are automatically generated from External Tasks.{' '}
+            Task workflow projects are generated from External Tasks. Network GIS projects are created here and open to their designs.{' '}
             <span
               onClick={() => setNewTaskOpen(true)}
               style={{ color: 'var(--color-teal)', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
@@ -177,7 +223,7 @@ export default function ProjectsPage() {
               return (
                 <div
                   key={p.id}
-                  onClick={() => navigate(`/projects/${p.id}/pipeline`)}
+                  onClick={() => navigate(p.project_type === 'infrastructure' ? `/projects/${p.id}?tab=designs` : `/projects/${p.id}/pipeline`)}
                   style={{
                     background: 'var(--surface)',
                     border: '1px solid var(--color-border)',
@@ -225,6 +271,7 @@ export default function ProjectsPage() {
                       </span>
                     )}
                   </div>
+                  {p.project_type === 'infrastructure' && <span style={{ display: 'inline-block', marginBottom: 8, padding: '3px 7px', borderRadius: 5, background: 'rgba(0,194,168,.12)', color: 'var(--color-teal)', fontSize: 9, fontWeight: 700, letterSpacing: '.06em' }}>NETWORK GIS PROJECT · OPEN DESIGNS</span>}
 
                   {/* Source task ref */}
                   {p.source_task_id && (

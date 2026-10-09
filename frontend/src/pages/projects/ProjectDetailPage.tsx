@@ -17,6 +17,7 @@ import type { ProjectPipelineResponse } from '@shared';
 import type { ApiError } from '../../api/client';
 import { GlassModal, GlassSelect } from '../../components/glass';
 import { ProjectDesigns } from '../../features/network-map/design/ProjectDesigns';
+import { useUrlTab } from '../../hooks/useUrlTab';
 
 function useToast() {
   const { addToast } = useUIStore();
@@ -59,7 +60,7 @@ export default function ProjectDetailPage() {
   const qc       = useQueryClient();
   const [showAdvance,        setShowAdvance]        = useState(false);
   const [showPushBack,       setShowPushBack]       = useState(false);
-  const [activeTab,          setActiveTab]          = useState<'timeline' | 'pipeline' | 'designs'>('timeline');
+  const [activeTab,          setActiveTab]          = useUrlTab(['timeline', 'pipeline', 'designs'] as const, 'timeline');
   const [showStartPipeline,  setShowStartPipeline]  = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
 

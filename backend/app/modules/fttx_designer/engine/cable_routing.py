@@ -60,6 +60,7 @@ from __future__ import annotations
 import math
 import time
 from collections import defaultdict
+from itertools import permutations
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from . import runtime_config as rc
@@ -75,7 +76,8 @@ from .config import (
 )
 from .domain import FAT, FDT, CableSegment, Homepass
 from .errors import ValidationError
-from .hop_limits import b2b_hop_limit
+from .hop_limits import _b2b_endpoint, b2b_hop_limit
+from .pole_routing import build_pole_graph, route_between_supports
 from .geometry_compat import (
     QgsFeature,
     QgsGeometry,
@@ -394,23 +396,8 @@ def _build_tied_graph(
 class CableRouter:
     """Handles cable routing along road network.
 
-    Design principle
-    ----------------
-    FATs and FDTs are placed *slightly off* the road centre-line (frontage
-    offset, pole-snap offset).  If we give their offset coordinates directly
-    to the graph nearest-vertex lookup we often snap to a vertex on a
-    *different* road whose vertex happens to be Euclidean-closer.  Dijkstra
-    then routes through that wrong road and the subsequent
-    ``_enforce_exact_cable_endpoints`` stub cuts across buildings.
-
-    The fix is a two-step snap:
-      1. Project the device point onto its *own* road geometry to get a
-         road-edge anchor (``_road_snap``).  This is the point used for
-         graph-vertex lookup — it is guaranteed to be on the correct road.
-      2. Build the full cable polyline as:
-             device_point → road_snap → [graph vertices] → road_snap → device_point
-         so every segment of the cable lies either along a road or in the
-         narrow frontage gap (< SNAP_OFFSET_DISTANCE).
+    Cable endpoints are tied to the road graph by their coordinates. Road
+    IDs are metadata and do not select routing anchors.
     """
 
     def __init__(self, road_layer: QgsVectorLayer, dist_calc: DistanceCalculator,
@@ -419,14 +406,14 @@ class CableRouter:
                  topology_engine: Optional['RoadTopologyEngine'] = None):
         self.road_layer      = road_layer
         # [B2B detour fix] Routing runs on NODED linework. self.road_layer
-        # stays the user's layer so CRS, attributes and _road_snap() are
-        # unaffected; only the graph directors read routing_layer.
+        # stays the user's layer; graph routing reads routing_layer.
         self.routing_layer   = road_layer
         self._routing_layer_ready = False
         self.dist_calc       = dist_calc
         self.roads           = roads or {}
         self.road_index      = road_index
         self.topology_engine = topology_engine   # weighted graph for routing
+        self._logger         = None  # Optional; routing must work without a logger.
         self.graph_builder   = None
         self.graph           = None
         self._vertex_index: Optional[QgsSpatialIndex] = None
@@ -438,9 +425,61 @@ class CableRouter:
         self._master_lookup: Dict[Tuple[float, float], int] = {}
         self._master_vcount = 0
         self._master_ecount = 0
+        self.route_stats = {'master': 0, 'temp_graph': 0, 'fallback': 0}
+        self.route_failures: List[str] = []
+        self.route_anchor_misses: List[str] = []
         # [Fix 1] Dijkstra tree cache, keyed by source vertex. Invalidated
         # whenever build_master_graph() replaces the graph.
         self._master_tree_cache: Dict[int, Any] = {}
+        self.b2b_routing_mode = "road"
+        self._support_poles = []
+        self._support_adjacency: Dict[int, Dict[int, float]] = {}
+        self._support_edge_paths: Dict[Tuple[int, int], List[QgsPointXY]] = {}
+        self._support_max_span_m = 60.0
+
+    def build_support_graph(self, structures, roads, max_junction_span_m=60.0) -> int:
+        """Build the optional aerial cable graph from snapped support poles."""
+        self._support_max_span_m = max_junction_span_m
+        self._support_edge_paths = {}
+        self._support_poles, self._support_adjacency = build_pole_graph(
+            structures, roads, self.dist_calc,
+            topology=self.topology_engine,
+            max_junction_span_m=max_junction_span_m,
+            edge_paths=self._support_edge_paths,
+        )
+        return sum(len(neighbors) for neighbors in self._support_adjacency.values()) // 2
+
+    def find_support_path_points(
+        self,
+        start: QgsPointXY,
+        end: QgsPointXY,
+        start_anchor: Optional[QgsPointXY],
+        end_anchor: Optional[QgsPointXY],
+        start_name: Optional[str] = None,
+        end_name: Optional[str] = None,
+    ) -> Tuple[QgsGeometry, float]:
+        """Route a box-to-box hop over connected support structures."""
+        geometry = route_between_supports(
+            self._support_poles,
+            self._support_adjacency,
+            self.dist_calc,
+            start,
+            end,
+            start_anchor,
+            end_anchor,
+            start_name,
+            end_name,
+            max_direct_span_m=self._support_max_span_m,
+            edge_paths=self._support_edge_paths,
+        )
+        if geometry is None or geometry.isEmpty():
+            return QgsGeometry(), 0.0
+        points = geometry.asPolyline()
+        length = sum(
+            self.dist_calc.distance_points(left, right)
+            for left, right in zip(points, points[1:])
+        )
+        return geometry, length
 
     def _ensure_routing_layer(self, logger=None) -> QgsVectorLayer:
         """Build (once) the noded layer every graph director should use.
@@ -457,6 +496,55 @@ class CableRouter:
             self.road_layer, logger if logger is not None else _QuietLogger())
         self._routing_layer_ready = True
         return self.routing_layer
+
+    def _road_snap(self, device_point: QgsPointXY,
+                   road_id: Optional[int]) -> QgsPointXY:
+        """Project device point onto its assigned road's geometry.
+
+        FATs and FDTs are placed slightly off the road centre-line (frontage
+        offset, pole-snap offset). If we give their offset coordinates directly
+        to the graph nearest-vertex lookup we often snap to a vertex on a
+        *different* road whose vertex happens to be Euclidean-closer. Dijkstra
+        then routes through that wrong road and the subsequent
+        ``_enforce_exact_cable_endpoints`` stub cuts across buildings.
+
+        This method projects the device point onto its *own* road geometry to
+        get a road-edge anchor that is guaranteed to be on the correct road.
+
+        Returns the nearest point ON THE SPECIFIED ROAD, not just globally
+        nearest. This prevents cross-road vertex snapping that causes
+        building-crossing cables.
+
+        Args:
+            device_point: The device's actual position (may be offset from road)
+            road_id: The road this device belongs to
+
+        Returns:
+            Point projected onto the device's road, or original point if
+            road_id is None or road geometry unavailable.
+        """
+        if road_id is None:
+            return device_point
+
+        if not self.roads or road_id not in self.roads:
+            return device_point
+
+        road = self.roads.get(road_id)
+        if road is None:
+            return device_point
+
+        road_geom = getattr(road, 'geometry', None)
+        if road_geom is None or road_geom.isEmpty():
+            return device_point
+
+        # Project device point onto its assigned road's geometry
+        device_geom = QgsGeometry.fromPointXY(device_point)
+        nearest = road_geom.nearestPoint(device_geom)
+
+        if nearest is None or nearest.isEmpty():
+            return device_point
+
+        return nearest.asPoint()
 
     def build_master_graph(self, points: List[QgsPointXY]) -> int:
         """Build ONE shared road graph with every given point tied in as an
@@ -477,6 +565,9 @@ class CableRouter:
         self._master_vcount = 0
         self._master_ecount = 0
         self._master_tree_cache = {}
+        self.route_stats = {'master': 0, 'temp_graph': 0, 'fallback': 0}
+        self.route_anchor_misses = []
+        self.route_failures = []
 
         if not points:
             return 0
@@ -566,6 +657,15 @@ class CableRouter:
         if len(pts) < 2:
             return None
 
+        # Keep the road graph's tied vertices and connect the real device
+        # coordinates with endpoint stubs. Replacing these vertices later
+        # stretches the first/last road edge into a chord across nearby lots.
+        if abs(pts[0].x() - start.x()) > 1e-8 or abs(pts[0].y() - start.y()) > 1e-8:
+            pts.insert(0, start)
+        if abs(pts[-1].x() - end.x()) > 1e-8 or abs(pts[-1].y() - end.y()) > 1e-8:
+            pts.append(end)
+        pts = _dedupe_points(pts)
+
         geom = QgsGeometry.fromPolylineXY(pts)
         return geom, geom.length()
 
@@ -589,30 +689,11 @@ class CableRouter:
             idx.addFeature(feat)
         return idx
 
-    def _road_snap(self, device_point: QgsPointXY,
-                   road_id: Optional[int]) -> QgsPointXY:
-        """Project a device point onto its own road centre-line.
-
-        Returns the nearest point on the road geometry so that graph-vertex
-        lookup is always relative to the correct road, not whichever road
-        vertex happens to be Euclidean-closest to the offset device point.
-
-        Falls back to the device point itself if the road is unavailable.
-        """
-        if road_id is None or road_id not in self.roads:
-            return device_point
-        road_geom = self.roads[road_id].geometry
-        if not road_geom or road_geom.isEmpty():
-            return device_point
-        pt_geom = QgsGeometry.fromPointXY(device_point)
-        snapped = road_geom.nearestPoint(pt_geom)
-        if snapped and not snapped.isEmpty():
-            return snapped.asPoint()
-        return device_point
-
     def find_shortest_path_points(self,
                                    start: QgsPointXY,
-                                   end: QgsPointXY) -> Tuple[QgsGeometry, float]:
+                                   end: QgsPointXY,
+                                   start_road_id: Optional[int] = None,
+                                   end_road_id: Optional[int] = None) -> Tuple[QgsGeometry, float]:
         """Find the true shortest road path between two arbitrary points.
 
         Builds a temporary graph with the two points tied in via
@@ -622,27 +703,43 @@ class CableRouter:
 
         Falls back to find_shortest_path (vertex-nearest approach) if the
         temporary graph build fails.
+
+        Args:
+            start: Start device point
+            end: End device point
+            start_road_id: Road ID the start device belongs to (prevents wrong-road snapping)
+            end_road_id: Road ID the end device belongs to (prevents wrong-road snapping)
+
+        Returns:
+            Tuple of (cable geometry, cable length)
         """
-        # ── Fast path: reuse the cached master graph if both points were
-        # pre-registered via build_master_graph(). This is what avoids
-        # rebuilding the whole road graph on every hop — see that method's
-        # docstring for why it matters.
+        # ── Fast path: Try master graph FIRST with exact input coordinates.
+        # The master was built with post-snap device positions, so a second
+        # road-snap here creates coordinate drift and lookup misses.
         via_master = self._shortest_path_via_master(start, end)
         if via_master is not None:
+            self.route_stats['master'] += 1
             return via_master
+
+        # ── Fallback path: Road-snap for temp graph build ──
+        # Only apply road-snap when building a one-off graph, to prevent
+        # cross-road vertex snapping that causes building-crossing cables.
+        start_road_pt = self._road_snap(start, start_road_id)
+        end_road_pt = self._road_snap(end, end_road_id)
 
         try:
             _rl = self._ensure_routing_layer()
+            # Use road-snapped points for graph building to ensure correct road assignment
             graph, vertex_ids = _build_tied_graph(
-                _rl, [start, end], tolerance=MASTER_GRAPH_TOPOLOGY_TOLERANCE,
+                _rl, [start_road_pt, end_road_pt], tolerance=MASTER_GRAPH_TOPOLOGY_TOLERANCE,
             )
 
             if not vertex_ids or len(vertex_ids) < 2:
-                return self.find_shortest_path(start, end)
+                return self.find_shortest_path(start, end, start_road_id=start_road_id, end_road_id=end_road_id)
 
             start_v, end_v = vertex_ids[0], vertex_ids[1]
             if start_v < 0 or end_v < 0:
-                return self.find_shortest_path(start, end)
+                return self.find_shortest_path(start, end, start_road_id=start_road_id, end_road_id=end_road_id)
 
             # [Physical contact fix] The tied vertex is the point ON the road
             # network nearest the device — for a pole-mounted device sitting
@@ -652,9 +749,9 @@ class CableRouter:
             # the device.
             def _with_device_stubs(path_pts: List[QgsPointXY]) -> Tuple[QgsGeometry, float]:
                 full = list(path_pts)
-                if self.dist_calc.distance_points(full[0], start) > rc.DROP_LENGTH_TOLERANCE:
+                if abs(full[0].x() - start.x()) > 1e-8 or abs(full[0].y() - start.y()) > 1e-8:
                     full.insert(0, start)
-                if self.dist_calc.distance_points(full[-1], end) > rc.DROP_LENGTH_TOLERANCE:
+                if abs(full[-1].x() - end.x()) > 1e-8 or abs(full[-1].y() - end.y()) > 1e-8:
                     full.append(end)
                 full = _dedupe_points(full)
                 if len(full) < 2:
@@ -664,12 +761,15 @@ class CableRouter:
 
             if start_v == end_v:
                 pt = graph.vertex(start_v).point()
-                return _with_device_stubs([pt, pt])
+                result = _with_device_stubs([pt, pt])
+                if result[0] and not result[0].isEmpty():
+                    self.route_stats['temp_graph'] += 1
+                return result
 
             tree, cost = QgsGraphAnalyzer.dijkstra(graph, start_v, 0)
 
             if end_v >= len(tree) or tree[end_v] == -1:
-                return self.find_shortest_path(start, end)
+                return self.find_shortest_path(start, end, start_road_id=start_road_id, end_road_id=end_road_id)
 
             # Reconstruct path
             pts     = []
@@ -681,28 +781,31 @@ class CableRouter:
 
             while current != start_v:
                 if current < 0 or current >= v_count:
-                    return self.find_shortest_path(start, end)
+                    return self.find_shortest_path(start, end, start_road_id=start_road_id, end_road_id=end_road_id)
                 pts.append(graph.vertex(current).point())
                 eid = tree[current]
                 if eid < 0 or eid >= e_count:
-                    return self.find_shortest_path(start, end)
+                    return self.find_shortest_path(start, end, start_road_id=start_road_id, end_road_id=end_road_id)
                 current = graph.edge(eid).fromVertex()
                 steps  += 1
                 if steps > max_s:
-                    return self.find_shortest_path(start, end)
+                    return self.find_shortest_path(start, end, start_road_id=start_road_id, end_road_id=end_road_id)
 
             pts.append(graph.vertex(start_v).point())
             pts.reverse()
 
             pts = _dedupe_points(pts)
             if len(pts) < 2:
-                return self.find_shortest_path(start, end)
+                return self.find_shortest_path(start, end, start_road_id=start_road_id, end_road_id=end_road_id)
 
-            return _with_device_stubs(pts)
+            result = _with_device_stubs(pts)
+            if result[0] and not result[0].isEmpty():
+                self.route_stats['temp_graph'] += 1
+            return result
 
         except Exception:
             # Any failure: fall back to the standard vertex-nearest approach
-            return self.find_shortest_path(start, end)
+            return self.find_shortest_path(start, end, start_road_id=start_road_id, end_road_id=end_road_id)
 
     def find_shortest_path(self, start: QgsPointXY, end: QgsPointXY,
                            constraints: Optional[Dict] = None,
@@ -719,23 +822,22 @@ class CableRouter:
 
         Callers must check `geom.isEmpty()` and log ROUTING_FAILURE accordingly.
         """
+        self.route_stats['fallback'] += 1
+
         def _fail() -> Tuple[QgsGeometry, float]:
             return QgsGeometry(), 0.0
 
         # ── Path 1: topology-engine weighted Dijkstra ────────────────────
         if self.topology_engine is not None and self.topology_engine.adj:
-            return self.topology_engine.weighted_shortest_path(
-                start, end,
-                start_road_id=start_road_id,
-                end_road_id=end_road_id,
-            )
+            return self.topology_engine.weighted_shortest_path(start, end)
 
         # ── Path 2: legacy graph Dijkstra ────────────────────────────────
         if not self.graph:
             self.build_graph()
 
+        # Apply road-snap to ensure devices snap to vertices on their assigned road
         start_road_pt = self._road_snap(start, start_road_id)
-        end_road_pt   = self._road_snap(end,   end_road_id)
+        end_road_pt   = self._road_snap(end, end_road_id)
         start_vertex  = self.find_nearest_vertex(start_road_pt)
         end_vertex    = self.find_nearest_vertex(end_road_pt)
 
@@ -841,16 +943,24 @@ def _line_vertices(line_geom: QgsGeometry) -> List[QgsPointXY]:
 def _enforce_exact_cable_endpoints(cable_geom: QgsGeometry,
                                    from_geom: QgsGeometry,
                                    to_geom: QgsGeometry) -> QgsGeometry:
-    """Force cable first/last vertices to match device anchors exactly."""
+    """Connect device anchors while preserving the road-route vertices.
+
+    Replacing a graph endpoint with an offset device coordinate stretches the
+    adjoining road edge into a straight chord. Add the device anchors as
+    stubs instead, keeping the road path intact.
+    """
     from_pt = _anchor_point_for_device(from_geom)
     to_pt = _anchor_point_for_device(to_geom)
 
     vertices = _line_vertices(cable_geom)
     if len(vertices) < 2:
-        vertices = [from_pt, to_pt]
-    else:
-        vertices[0] = from_pt
-        vertices[-1] = to_pt
+        raise ValidationError("Cannot restore cable endpoints: road routing returned no usable path")
+
+    if abs(vertices[0].x() - from_pt.x()) > 1e-8 or abs(vertices[0].y() - from_pt.y()) > 1e-8:
+        vertices.insert(0, from_pt)
+    if abs(vertices[-1].x() - to_pt.x()) > 1e-8 or abs(vertices[-1].y() - to_pt.y()) > 1e-8:
+        vertices.append(to_pt)
+    vertices = _dedupe_points(vertices)
 
     fixed = QgsGeometry.fromPolylineXY(vertices)
 
@@ -1215,6 +1325,77 @@ def route_fdt_to_fats(fdts: List[FDT],
             if not wing_fats:
                 continue
 
+            # The earlier cascade and repair stages optimize against road
+            # topology. In pole-to-pole mode, the final support graph can have
+            # different hop costs, so re-evaluate this small wing chain using
+            # the exact graph that will emit the cables. This preserves the
+            # strict configured limits and only changes order when it improves
+            # the worst normalized hop.
+            if (cable_router.b2b_routing_mode == "pole_to_pole"
+                    and 1 < len(wing_fats) <= 6):
+                original_order = list(wing_fats)
+                length_cache: Dict[Tuple[int, int], Optional[float]] = {}
+                fdt_endpoint = fdt_point
+                fdt_support = fdt.snapped_geometry or fdt.geometry
+
+                def _support_hop_length(left_index: int, right_index: int) -> Optional[float]:
+                    key = (left_index, right_index)
+                    if key in length_cache:
+                        return length_cache[key]
+                    left_fat = original_order[left_index - 1] if left_index else None
+                    right_fat = original_order[right_index - 1]
+                    left_point = _b2b_endpoint(left_fat) if left_fat else fdt_endpoint
+                    left_anchor = (left_fat.snapped_geometry or left_fat.geometry) if left_fat else fdt_support
+                    left_name = left_fat.structure_name if left_fat else fdt.structure_name
+                    geometry, length = cable_router.find_support_path_points(
+                        left_point,
+                        _b2b_endpoint(right_fat),
+                        left_anchor,
+                        right_fat.snapped_geometry or right_fat.geometry,
+                        left_name,
+                        right_fat.structure_name,
+                    )
+                    result = (
+                        float(length)
+                        if geometry is not None and not geometry.isEmpty()
+                        else None
+                    )
+                    length_cache[key] = result
+                    return result
+
+                def _order_score(order_indices: Tuple[int, ...]):
+                    ratios: List[float] = []
+                    previous_index = 0  # 0 denotes the FDT; FAT indexes start at 1.
+                    for hop_index, fat_index in enumerate(order_indices):
+                        current_index = fat_index + 1
+                        length = _support_hop_length(previous_index, current_index)
+                        if length is None:
+                            return (float("inf"), float("inf"))
+                        limit = b2b_hop_limit(hop_index)
+                        ratios.append(length / limit if limit > 0 else float("inf"))
+                        previous_index = current_index
+                    return (max(ratios, default=0.0), sum(ratios))
+
+                base_indices = tuple(range(len(original_order)))
+                base_score = _order_score(base_indices)
+                best_indices = base_indices
+                best_score = base_score
+                for candidate_indices in permutations(base_indices):
+                    candidate_score = _order_score(candidate_indices)
+                    if candidate_score < best_score:
+                        best_indices, best_score = candidate_indices, candidate_score
+
+                if best_indices != base_indices and best_score[0] + 1e-9 < base_score[0]:
+                    wing_fats = [original_order[index] for index in best_indices]
+                    for index, fat in enumerate(wing_fats):
+                        fat.from_device = fdt.name if index == 0 else wing_fats[index - 1].name
+                        fat.to_device = wing_fats[index + 1].name if index + 1 < len(wing_fats) else None
+                    logger.log(
+                        f"[POLE-CHAIN-ORDER] {fdt.name} Wing {wing}: "
+                        f"{' → '.join(fat.name for fat in wing_fats)}; "
+                        f"worst hop ratio {base_score[0]:.3f} → {best_score[0]:.3f}"
+                    )
+
             # ── Emit one CableSegment per hop ─────────────────────────────────
             # Hops: FDT→FAT[0], FAT[0]→FAT[1], …, FAT[n-2]→FAT[n-1]
             # wing_name groups every hop cable on this wing under one shared
@@ -1223,6 +1404,8 @@ def route_fdt_to_fats(fdts: List[FDT],
             # and can be filtered/grouped together in the attribute table.
             wing_name  = f"{fdt.name}{wing}"
             prev_point = fdt_point
+            prev_support_anchor = fdt.snapped_geometry or fdt.geometry
+            prev_support_name = fdt.structure_name
             prev_name  = fdt.name
             wing_ok    = True
 
@@ -1233,7 +1416,8 @@ def route_fdt_to_fats(fdts: List[FDT],
                 # offset_geometry (see FAT layer population), so a cable that
                 # terminates at snapped_geometry instead visually stops short
                 # of / cuts past the box rather than touching it.
-                end_point = fat.offset_geometry or fat.snapped_geometry or fat.geometry
+                # Use _b2b_endpoint() for consistent device anchor resolution
+                end_point = _b2b_endpoint(fat)
 
                 # Zone containment check (non-fatal; logged only)
                 if fdt.zone_geometry and not fdt.zone_geometry.contains(
@@ -1242,14 +1426,46 @@ def route_fdt_to_fats(fdts: List[FDT],
                         f"WARNING [FAT_OUTSIDE_ZONE]: {fat.name} is outside FDT zone"
                     )
 
-                geom, hop_len = cable_router.find_shortest_path_points(
-                    prev_point, end_point
+                non_master_before = (
+                    cable_router.route_stats['temp_graph']
+                    + cable_router.route_stats['fallback']
                 )
+                # Pass road IDs to prevent cross-road vertex snapping
+                # For first hop (FDT→FAT), use FDT's road. For subsequent hops, use previous FAT's road.
+                start_road_id = fdt_road_id if i == 0 else wing_fats[i-1].road_id
+                end_road_id = fat.road_id
+                if cable_router.b2b_routing_mode == "pole_to_pole":
+                    end_support_anchor = fat.snapped_geometry or fat.geometry
+                    geom, hop_len = cable_router.find_support_path_points(
+                        prev_point,
+                        end_point,
+                        prev_support_anchor,
+                        end_support_anchor,
+                        prev_support_name,
+                        fat.structure_name,
+                    )
+                else:
+                    geom, hop_len = cable_router.find_shortest_path_points(
+                        prev_point, end_point,
+                        start_road_id=start_road_id,
+                        end_road_id=end_road_id
+                    )
+                non_master_after = (
+                    cable_router.route_stats['temp_graph']
+                    + cable_router.route_stats['fallback']
+                )
+                if non_master_after > non_master_before:
+                    cable_router.route_anchor_misses.append(
+                        f"{prev_name} -> {fat.name}"
+                    )
 
                 if geom is None or geom.isEmpty():
+                    cable_router.route_failures.append(
+                        f"{prev_name} -> {fat.name}"
+                    )
                     logger.log(
                         f"WARNING [ROUTING_FAILURE]: {prev_name}→{fat.name} "
-                        f"no topology path: {prev_name}"
+                        f"no {cable_router.b2b_routing_mode} path: {prev_name}"
                         f"(road {fat.road_id if i > 0 else fdt_road_id})"
                         f" → {fat.name}(road {fat.road_id})."
                         f" Wing {wing} cable chain truncated at hop {i + 1}."
@@ -1267,7 +1483,14 @@ def route_fdt_to_fats(fdts: List[FDT],
                 except ValidationError:
                     pass  # keep Dijkstra geometry if snapping fails
 
-                hop_len = geom.length()
+                if cable_router.b2b_routing_mode == "pole_to_pole":
+                    _path_points = geom.asPolyline()
+                    hop_len = sum(
+                        cable_router.dist_calc.distance_points(left, right)
+                        for left, right in zip(_path_points, _path_points[1:])
+                    )
+                else:
+                    hop_len = geom.length()
 
                 # [Fix 4] Same limit resolver as the repair passes and the
                 # hard gate, so this warning can never describe a different
@@ -1289,6 +1512,7 @@ def route_fdt_to_fats(fdts: List[FDT],
                     fdt_id=fdt.name,
                     core_info={
                         "architecture": "PCC",
+                        "b2b_routing_mode": cable_router.b2b_routing_mode,
                         "wing":         wing,
                         "wing_name":    wing_name,  # e.g. "FDT-01A" — shared by every cable on this wing
                         "hop_seq":      i + 1,      # 1 = FDT→first FAT
@@ -1322,6 +1546,8 @@ def route_fdt_to_fats(fdts: List[FDT],
                 )
 
                 prev_point = end_point
+                prev_support_anchor = fat.snapped_geometry or fat.geometry
+                prev_support_name = fat.structure_name
                 prev_name  = fat.name
 
             if wing_ok:
@@ -1357,7 +1583,7 @@ def route_fat_to_homepasses(fats: List[FAT],
     hp_by_fid = {h.fid: h for h in homepasses}
 
     for fat in fats:
-        start_point = fat.offset_geometry or fat.snapped_geometry or fat.geometry
+        start_point = _b2b_endpoint(fat)
 
         # Use customer_allocations when available (supports split points)
         if fat.customer_allocations:
@@ -1470,7 +1696,7 @@ def route_legacy_fdt_to_fats_by_road(
                 last_fat = chunk[-1]
                 # Real physical box position (frontage-offset), not the
                 # on-road snap point — see route_fdt_to_fats for the same fix.
-                last_pt  = last_fat.offset_geometry or last_fat.snapped_geometry or last_fat.geometry
+                last_pt  = _b2b_endpoint(last_fat)
 
                 # Route cable FDT → last FAT on this road
                 geom, length = cable_router.find_shortest_path_points(fdt_pt, last_pt)
@@ -1498,7 +1724,7 @@ def route_legacy_fdt_to_fats_by_road(
                 tap_points = []
                 for tap_i, fat in enumerate(chunk):
                     core_pair = (tap_i * 2 + 1, tap_i * 2 + 2)
-                    fat_pt = fat.offset_geometry or fat.snapped_geometry or fat.geometry
+                    fat_pt = _b2b_endpoint(fat)
                     nearest = geom.nearestPoint(QgsGeometry.fromPointXY(fat_pt))
                     tap_m = geom.lineLocatePoint(nearest)
                     tap_points.append({

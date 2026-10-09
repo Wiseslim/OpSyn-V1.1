@@ -89,7 +89,7 @@ STRICT_FAT_TO_FAT_HOP = True
 # "abort" to "complete, but register every surviving violation as a costed
 # engineering exception". Cables are flagged in core_info and listed in the log
 # either way; this only decides whether the run finishes.
-ALLOW_DOCUMENTED_B2B_EXCEPTIONS = True
+ALLOW_DOCUMENTED_B2B_EXCEPTIONS = False
 B2B_EXCESS_COST_PER_M = 65.0  # $/m, 8-core cable; used only for reporting
 
 # [Fix 7] Convergence control. Repair passes were oscillating: the same FAT was
@@ -496,6 +496,12 @@ class DeploymentType(Enum):
     HYBRID = "hybrid"
 
 
+class B2BRoutingMode(Enum):
+    """Geometry source for aerial box-to-box cable hops."""
+    ROAD = "road"
+    POLE_TO_POLE = "pole_to_pole"
+
+
 @dataclass
 class FTTXConfig:
     """User-configurable runtime settings."""
@@ -524,6 +530,10 @@ class FTTXConfig:
     pon_architecture: PONArchitecture = PONArchitecture.SINGLE_PON
     # Phase 2: deployment type
     deployment_type: DeploymentType = DeploymentType.AERIAL
+    b2b_routing_mode: B2BRoutingMode = B2BRoutingMode.ROAD
+    # Explicit per-run opt-in: over-limit B2B hops remain listed and costed
+    # as engineering exceptions instead of failing the design.
+    allow_documented_b2b_exceptions: bool = False
     # Underground options (used by UndergroundStrategy — Phase 3)
     ug_infrastructure_type: str = "handhole"  # "handhole" | "manhole"
     ug_spacing_m: float = 80.0  # structure spacing along road

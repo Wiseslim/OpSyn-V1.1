@@ -239,6 +239,10 @@ def populate_output_layers(layers: Dict[str, QgsVectorLayer],
             ci.get("cable_type", "b2b"),
             ci.get("wing", ""),
             ci.get("wing_name", cable.fdt_id),
+            bool(ci.get("length_exception", False)),
+            ci.get("length_limit_m", 0.0),
+            ci.get("length_excess_m", 0.0),
+            ci.get("exception_cost_estimate", 0.0),
         ])
         b2b_features.append(feat)
 

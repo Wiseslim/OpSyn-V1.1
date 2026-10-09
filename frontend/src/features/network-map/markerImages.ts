@@ -109,6 +109,24 @@ export async function addMarkerImages(map: MlMap): Promise<void> {
   }
 }
 
+/** FTTx preview uses the same OpSyn glyph and tier silhouette, with an
+ * engineering layer colour so devices remain distinguishable on the map. */
+export const FTTX_ICON_TYPES = {
+  fdt: 'FDT', fat: 'FAT', closure: 'CLOSURE', pickup_point: 'CABINET', pole_output: 'POLE',
+} as const satisfies Record<string, NetAssetType>;
+export const FTTX_ICON_COLORS: Record<keyof typeof FTTX_ICON_TYPES, string> = {
+  fdt:'#005A9C', fat:'#A84300', closure:'#006B45', pickup_point:'#74513A', pole_output:'#53616C',
+};
+export function fttxIconName(key: keyof typeof FTTX_ICON_TYPES): string { return `fttx-${key}`; }
+export async function addFttxMarkerImages(map: MlMap): Promise<void> {
+  await Promise.all((Object.keys(FTTX_ICON_TYPES) as (keyof typeof FTTX_ICON_TYPES)[]).map(async key => {
+    const svg = markerSvg(FTTX_ICON_TYPES[key], 'ok').replace(TIER_COLOR[ASSET_TIER[FTTX_ICON_TYPES[key]]], FTTX_ICON_COLORS[key]);
+    const image = await rasterise(svg);
+    const name = fttxIconName(key);
+    if (!map.hasImage(name)) map.addImage(name, image, { pixelRatio: PIXEL_RATIO });
+  }));
+}
+
 /** A marker as a data URL, for the panel legend and the inspector header. */
 export function markerDataUrl(type: NetAssetType, variant: IconVariant = 'ok'): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markerSvg(type, variant))}`;

@@ -40,7 +40,7 @@ import { DesignPanel } from './design/DesignPanel';
 import { DesignMapContent, DesignOverlays } from './design/DesignWorkspace';
 import { designError } from './design/designFormat';
 import { fttxDesignerApi } from '../../api/fttx-designer.api';
-import { FttxAttributeTable, FttxRunPreviewLayers, FttxRunPreviewPanel } from './FttxRunPreview';
+import { FttxAttributeTable, FttxRelationshipPanel, FttxRunPreviewLayers, FttxRunPreviewPanel } from './FttxRunPreview';
 import s from './NetworkMap.module.css';
 
 export default function NetworkMapPage() {
@@ -84,6 +84,25 @@ export default function NetworkMapPage() {
   });
   const [fttxVisible, setFttxVisible] = useState<Record<string, boolean>>({});
   const [fttxTableKey, setFttxTableKey] = useState<string | null>(null);
+  const [fttxOrder, setFttxOrder] = useState<string[]>([]);
+  const [fttxLabelFields, setFttxLabelFields] = useState<Record<string,string>>({});
+  const [fttxSelected, setFttxSelected] = useState<{layer:string;properties:Record<string,unknown>}|null>(null);
+  const fttxInitializedRun = useRef<string|null>(null);
+  useEffect(() => {
+    if (!fttxResults.data || !fttxRunId || fttxInitializedRun.current === fttxRunId) return;
+    fttxInitializedRun.current = fttxRunId;
+    const available = Object.keys(fttxResults.data.output_layers).filter(k=>['fdt','fat','closure','pole_output','pickup_point','b2b','b2c','feeder','closure_cable'].includes(k));
+    const pointLayers = ['fdt','fat','closure','pole_output','pickup_point'];
+    setFttxOrder([...available.filter(k=>pointLayers.includes(k)), ...available.filter(k=>!pointLayers.includes(k))]);
+    setFttxLabelFields({});
+    setFttxSelected(null);
+  }, [fttxRunId, fttxResults.data]);
+  const moveFttxLayer = useCallback((key:string,direction:-1|1) => setFttxOrder(current => {
+    const keys = [...(fttxResults.data ? Object.keys(fttxResults.data.output_layers).filter(k=>['fdt','fat','closure','pole_output','pickup_point','b2b','b2c','feeder','closure_cable'].includes(k)) : []), ...current].filter((k,i,a)=>a.indexOf(k)===i);
+    const index=keys.indexOf(key), target=index+direction;
+    if(index<0||target<0||target>=keys.length) return keys;
+    [keys[index],keys[target]]=[keys[target],keys[index]]; return keys;
+  }),[fttxResults.data]);
   const designQ = useDesign(designId);
   const design = designQ.data;
   const openDesign = useDesignMapStore(st => st.open);
@@ -223,6 +242,10 @@ export default function NetworkMapPage() {
           inputLayers={fttxInputLayers.data}
           visible={fttxVisible}
           tableKey={fttxTableKey}
+          order={fttxOrder}
+          labelFields={fttxLabelFields}
+          onMove={moveFttxLayer}
+          onLabelField={(key,field)=>setFttxLabelFields(current=>({...current,[key]:field}))}
           onToggle={(key, checked) => setFttxVisible(current => ({ ...current, [key]: checked }))}
           onOpenTable={setFttxTableKey}
           onBack={() => navigate(`/fttx-designer/runs/${fttxRunId}`)}
@@ -268,7 +291,7 @@ export default function NetworkMapPage() {
           )}
           {trace && <TraceLayer trace={traceQ.data} />}
           {design && <DesignMapContent design={design} onPick={onPick} />}
-          {fttxRunId && <FttxRunPreviewLayers runId={fttxRunId} results={fttxResults.data} visible={fttxVisible} />}
+          {fttxRunId && <FttxRunPreviewLayers runId={fttxRunId} results={fttxResults.data} visible={fttxVisible} order={fttxOrder} labelFields={fttxLabelFields} onSelect={(layer,properties)=>setFttxSelected({layer,properties})} />}
           {picked && (
             <FeaturePopup
               picked={picked}
@@ -293,6 +316,7 @@ export default function NetworkMapPage() {
             onClose={() => setFttxTableKey(null)}
           />
         )}
+        {fttxRunId && <FttxRelationshipPanel selected={fttxSelected} results={fttxResults.data} onClose={()=>setFttxSelected(null)} />}
 
         {design && <DesignOverlays design={design} onFit={fitBox} />}
 

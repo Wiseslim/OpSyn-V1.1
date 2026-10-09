@@ -29,7 +29,7 @@ import {
   type FttxDesignRun,
   type FttxDesignRunLayer,
 } from '../../api/fttx-designer.api';
-import { ArrowLeft, Check, CircleAlert, CircleCheck, FileDown, FileText, MapPinned, Network } from 'lucide-react';
+import { ArrowLeft, Check, CircleAlert, CircleCheck, FileDown, FileText, MapPinned, Network, RotateCcw } from 'lucide-react';
 import { useUIStore } from '../../store/ui.store';
 import { Button, Spinner, Input, Select, Badge } from '../../components/ui';
 import { FttxConfigFields } from '../../components/fttx/FttxConfigFields';
@@ -69,6 +69,7 @@ function stepForStatus(run: FttxDesignRun | undefined): StepId {
   if (!run) return 1;
   switch (run.status) {
     case 'draft':
+      return Object.keys(run.config ?? {}).length === 0 ? 1 : 2;
     case 'layers_pending':
       return 2;
     case 'ready':
@@ -86,7 +87,11 @@ function stepForStatus(run: FttxDesignRun | undefined): StepId {
 }
 
 // ── Step indicator ───────────────────────────────────────────
-function StepIndicator({ current }: { current: StepId }) {
+function StepIndicator({ current, canEditSetup, onSelect }: {
+  current: StepId;
+  canEditSetup: boolean;
+  onSelect: (step: StepId) => void;
+}) {
   const steps: { id: StepId; label: string }[] = [
     { id: 1, label: 'Configuration' },
     { id: 2, label: 'Upload Layers' },
@@ -100,8 +105,15 @@ function StepIndicator({ current }: { current: StepId }) {
         {steps.map((item, index) => (
           <li key={item.id} className={item.id < current ? s.stepComplete : item.id === current ? s.stepCurrent : s.stepUpcoming}
             aria-current={item.id === current ? 'step' : undefined}>
-            <span className={s.stepNode}>{item.id < current ? <Check size={15} strokeWidth={2.5} /> : item.id}</span>
-            <span className={s.stepLabel}>{item.label}</span>
+            {canEditSetup && item.id <= 2 ? (
+              <button type="button" className={s.stepButton} onClick={() => onSelect(item.id)} aria-label={`Go to ${item.label}`} aria-current={item.id === current ? 'step' : undefined}>
+                <span className={s.stepNode}>{item.id < current ? <Check size={15} strokeWidth={2.5} /> : item.id}</span>
+                <span className={s.stepLabel}>{item.label}</span>
+              </button>
+            ) : <>
+              <span className={s.stepNode}>{item.id < current ? <Check size={15} strokeWidth={2.5} /> : item.id}</span>
+              <span className={s.stepLabel}>{item.label}</span>
+            </>}
             {index < steps.length - 1 && <span className={s.stepConnector} aria-hidden="true" />}
           </li>
         ))}
@@ -129,7 +141,9 @@ function StepConfig({ run, onSaved }: { run: FttxDesignRun; onSaved: () => void 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <Input label="Run Name" value={name} onChange={setName} placeholder="e.g. Kokona Estate — Phase 1" />
-      <FttxConfigFields value={settings} onChange={setSettings} />
+      <FttxConfigFields value={settings} onChange={setSettings}
+        unavailableDeployments={['underground','drainage','hybrid']}
+        deploymentNote="The web design engine currently supports aerial runs. Other modes are shown for planning but cannot run here yet." />
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
           {saveMutation.isPending ? <><Spinner size="xs" /> Saving…</> : 'Save & Continue'}
@@ -343,6 +357,8 @@ function StepReview({
     ['Deployment Type', run.config.deployment_type ?? 'aerial'],
     ['Cascade Architecture', run.config.cascade_architecture ?? 'pcc'],
     ['PON Architecture', run.config.pon_architecture ?? 'single_pon'],
+    ['Box-to-box routing', run.config.b2b_routing_mode === 'pole_to_pole' ? 'Pole to pole' : 'Road network'],
+    ['Documented cable exceptions', run.config.allow_documented_b2b_exceptions === true ? 'Enabled — requires engineering sign-off' : 'Disabled'],
     ['Coverage %', run.config.coverage_pct ?? 100],
     ['Homepass Field', run.config.homepass_field_name ?? 'Name (default)'],
     ['Optical Trace', run.config.optical_enabled === false ? 'Disabled' : 'Enabled'],
@@ -352,6 +368,9 @@ function StepReview({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--chalk2)', marginBottom: 8 }}>Configuration</div>
+        {run.config.allow_documented_b2b_exceptions === true && <div style={{ marginBottom: 8, padding: '10px 12px', border: '1px solid var(--status-warning-fg)', borderRadius: 8, color: 'var(--text-primary)', fontSize: 12 }}>
+          Over-limit box-to-box cables will be included as documented engineering exceptions and need sign-off.
+        </div>}
         <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '4px 16px' }}>
           {configRows.map(([label, value]) => (
             <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
@@ -418,6 +437,19 @@ function StepProgress({ runId }: { runId: string }) {
 // ── Step 5: Results ───────────────────────────────────────────
 function StepResults({ run, navigate }: { run: FttxDesignRun; navigate: (path: string) => void }) {
   const toast = useToast();
+  const queryClient = useQueryClient();
+
+  const rerunMutation = useMutation({
+    mutationFn: (configOverrides: Record<string, unknown>) => fttxDesignerApi.rerunFailedRun(run.id, configOverrides),
+    onSuccess: (rerun) => {
+      queryClient.invalidateQueries({ queryKey: ['fttx-designer', 'runs'] });
+      toast.success('Rerun started', rerun.config.allow_documented_b2b_exceptions === true
+        ? 'Saved layers reused. Over-limit cables will be listed and costed for engineering sign-off.'
+        : 'Your saved configuration and uploaded layers were reused.');
+      navigate(`/fttx-designer/${rerun.id}`);
+    },
+    onError: (e: ApiError) => toast.error('Could not rerun design', e?.detail),
+  });
 
   const resultsQuery = useQuery({
     queryKey: ['fttx-designer', 'run', run.id, 'results'],
@@ -454,6 +486,7 @@ function StepResults({ run, navigate }: { run: FttxDesignRun; navigate: (path: s
 
   const summary = (run.result_summary ?? {}) as Record<string, any>;
   const optical = summary.optical as Record<string, any> | undefined;
+  const hasB2bLengthFailure = run.error_message?.includes('[CABLE_LENGTH_EXCEEDED]') ?? false;
 
   if (run.status === 'failed') {
     return (
@@ -463,11 +496,22 @@ function StepResults({ run, navigate }: { run: FttxDesignRun; navigate: (path: s
           <div><h2>Design run failed</h2><p>{run.error_message || 'An unexpected error occurred while processing this design.'}</p></div>
         </div>
         <div className={s.outcomeActions}>
+          <Button variant="primary" leftIcon={<RotateCcw size={16} />} onClick={() => rerunMutation.mutate({})} loading={rerunMutation.isPending}>
+            Rerun design
+          </Button>
+          {hasB2bLengthFailure && (
+            <Button variant="secondary" leftIcon={<RotateCcw size={16} />} onClick={() => rerunMutation.mutate({ allow_documented_b2b_exceptions: true })} loading={rerunMutation.isPending}>
+              Rerun with documented exceptions
+            </Button>
+          )}
           <Button variant="secondary" leftIcon={<FileDown size={16} />} onClick={() => logMutation.mutate()} disabled={logMutation.isPending}>
             {logMutation.isPending ? 'Fetching log…' : 'Download log'}
           </Button>
           <Button variant="ghost" leftIcon={<ArrowLeft size={16} />} onClick={() => navigate('/fttx-designer')}>Back to runs</Button>
         </div>
+        {hasB2bLengthFailure && <p style={{ margin: '-6px 0 0', color: 'var(--chalk3)', fontSize: 12, textAlign: 'right' }}>
+          This opt-in completes the design with over-limit cables flagged and costed for engineering sign-off.
+        </p>}
       </div>
     );
   }
@@ -565,6 +609,7 @@ function StepResults({ run, navigate }: { run: FttxDesignRun; navigate: (path: s
 function FttxDesignerWizardContent() {
   const { runId } = useParams<{ runId: string }>();
   const navigate = useNavigate();
+  const [stepSelection, setStepSelection] = useState<{ runId: string; step: StepId } | null>(null);
 
   const runQuery = useQuery({
     queryKey: ['fttx-designer', 'run', runId],
@@ -597,7 +642,8 @@ function FttxDesignerWizardContent() {
   }
 
   const run = runQuery.data;
-  const step = stepForStatus(run);
+  const step = stepSelection?.runId === run.id ? stepSelection.step : stepForStatus(run);
+  const canEditSetup = run.status === 'draft' || run.status === 'layers_pending' || run.status === 'ready';
   const statusVariant = run.status === 'completed' ? 'resolved' as const
     : run.status === 'failed' ? 'critical' as const
     : run.status === 'running' || run.status === 'queued' ? 'warning' as const
@@ -615,7 +661,7 @@ function FttxDesignerWizardContent() {
           </div>
           <Badge className={s.headerBadge} variant={statusVariant} dot>{run.status.replaceAll('_', ' ')}</Badge>
         </header>
-        <StepIndicator current={step} />
+        <StepIndicator current={step} canEditSetup={canEditSetup} onSelect={selected => setStepSelection({ runId: run.id, step: selected })} />
         <section className={s.stepPanel} aria-label={`${step === 5 ? 'Results' : step === 4 ? 'Design progress' : 'Design setup'} step`}>
           <div className={s.panelHead}>
             <div className={s.panelIcon}><Network size={18} /></div>
@@ -623,9 +669,9 @@ function FttxDesignerWizardContent() {
               <p>{run.status === 'failed' ? 'Review the error and download the run log for troubleshooting.' : run.status === 'cancelled' ? 'This run was stopped before outputs were generated.' : step === 5 ? 'Review generated network assets and deliverables.' : step === 4 ? 'The designer is processing your network layers.' : 'Configure the run and prepare the source layers.'}</p>
             </div>
           </div>
-          {step === 1 && <StepConfig run={run} onSaved={refreshRun} />}
-          {step === 2 && <StepLayers run={run} layers={layersQuery.data ?? []} onContinue={refreshRun} />}
-          {step === 3 && <StepReview run={run} layers={layersQuery.data ?? []} onQueued={refreshRun} />}
+          {step === 1 && <StepConfig run={run} onSaved={() => { setStepSelection(null); refreshRun(); }} />}
+          {step === 2 && <StepLayers run={run} layers={layersQuery.data ?? []} onContinue={() => { setStepSelection({ runId: run.id, step: 3 }); refreshRun(); }} />}
+          {step === 3 && <StepReview run={run} layers={layersQuery.data ?? []} onQueued={() => { setStepSelection(null); refreshRun(); }} />}
           {step === 4 && <StepProgress runId={run.id} />}
           {step === 5 && <StepResults run={run} navigate={navigate} />}
         </section>

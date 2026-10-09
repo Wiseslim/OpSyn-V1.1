@@ -321,7 +321,8 @@ export interface CreateTaskRequest {
 // ── Projects ─────────────────────────────────────────────────
 export type ProjectStatus = 'active' | 'completed' | 'paused';
 export type ProjectType =
-  | 'internal' | 'external' | 'cable_upgrade' | 'olt_installation' | 'procurement';
+  | 'internal' | 'external' | 'cable_upgrade' | 'olt_installation' | 'procurement'
+  | 'infrastructure' | 'software' | 'operations' | 'security';
 
 export interface Project {
   id: string;

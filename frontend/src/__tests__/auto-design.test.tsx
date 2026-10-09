@@ -58,14 +58,21 @@ describe('FTTx settings (shared by the wizard and the drawer)', () => {
     expect(s).toMatchObject({ deployment_type: 'aerial', cascade_architecture: 'pcc', pon_architecture: 'single_pon',
       coverage_pct: '80', optical_enabled: true });
     const cfg = settingsToConfig({ ...s, cascade_architecture: 'legacy', pon_architecture: 'dual_pon', coverage_pct: 'x' }, { extra: 1 });
-    expect(cfg).toMatchObject({ extra: 1, pon_architecture: 'single_pon', coverage_pct: 100 });   // legacy forces 1 PON
+    expect(cfg).toMatchObject({ extra: '1', pon_architecture: 'single_pon', coverage_pct: 100 });   // legacy forces 1 PON
+  });
+
+  it('round-trips a saved JSON splitter pattern without turning JSON tokens into splitter names', () => {
+    const saved = { splitter_pattern: ['1x9', '1x9', '1x9', '1x8'] };
+    const settings = settingsFromConfig(saved);
+    const roundTripped = settingsToConfig(settings, saved);
+    expect(roundTripped.splitter_pattern).toEqual(saved.splitter_pattern);
   });
 
   it('is a controlled form', async () => {
     const onChange = vi.fn();
     render(<FttxConfigFields value={settingsFromConfig({})} onChange={onChange} showProject={false} />);
     expect(screen.queryByLabelText('Project Name')).not.toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText('Coverage Percentage'), '5');
+    await userEvent.type(screen.getByLabelText('Coverage (%)'), '5');
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ coverage_pct: '1005' }));
   });
 });
