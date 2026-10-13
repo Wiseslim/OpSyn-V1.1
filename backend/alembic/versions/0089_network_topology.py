@@ -64,7 +64,7 @@ def upgrade() -> None:
             cable_id    uuid         NOT NULL REFERENCES net_cables(id) ON DELETE CASCADE,
             fiber_no    integer      NOT NULL CHECK (fiber_no >= 1),
             status      varchar(20)  NOT NULL DEFAULT 'FREE' CHECK (status IN {_in(FIBER_STATUSES)}),
-            attributes  jsonb        NOT NULL DEFAULT '{{}}'::jsonb,
+            attributes  jsonb        NOT NULL DEFAULT jsonb_build_object(),
             created_at  timestamptz  NOT NULL DEFAULT now(),
             updated_at  timestamptz  NOT NULL DEFAULT now(),
             CONSTRAINT uq_net_fibers_cable_no UNIQUE (cable_id, fiber_no)
@@ -86,7 +86,7 @@ def upgrade() -> None:
             connection_type   varchar(20)  NOT NULL DEFAULT 'FEED' CHECK (connection_type IN {_in(CONNECTION_TYPES)}),
             lifecycle_status  varchar(20)  NOT NULL DEFAULT 'ACTIVE' CHECK (lifecycle_status IN {_in(LIFECYCLE_STATES)}),
             design_id         uuid,
-            attributes        jsonb        NOT NULL DEFAULT '{{}}'::jsonb,
+            attributes        jsonb        NOT NULL DEFAULT jsonb_build_object(),
             source_table      varchar(50),
             source_id         uuid,
             created_by        uuid         REFERENCES users(id) ON DELETE SET NULL,

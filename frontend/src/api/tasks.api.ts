@@ -120,7 +120,7 @@ export interface TimelineEvent {
 // ── Tasks ─────────────────────────────────────────────────────
 
 export const tasksApi = {
-  getBoard: (params?: { dept_id?: string; assignee_id?: string }) =>
+  getBoard: (params?: { dept_id?: string; assignee_id?: string; task_scope?: 'internal' | 'external' | 'all' }) =>
     apiClient.get<APIResponse<TaskBoard>>('/tasks/board', { params }).then(r => r.data.data),
 
   getStatusBoard: (params?: { dept_id?: string; assignee_id?: string }) =>

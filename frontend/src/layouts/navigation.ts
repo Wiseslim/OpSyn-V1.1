@@ -88,7 +88,19 @@ export const NAV_SECTIONS: NavSection[] = [
           { id: 'infra-settings', label: 'Monitoring rules', path: '/infrastructure/settings', keywords: ['thresholds', 'capacity'] },
         ],
       },
-      { id: 'fttx', label: 'FTTx Designer', path: '/fttx-designer', icon: Network, keywords: ['design runs', 'planning', 'boq'] },
+      {
+        id: 'project', label: 'Project', path: '/engineering/project', icon: FolderKanban,
+        keywords: ['design', 'boq', 'deployment', 'as-built', 'auto design', 'manual design'],
+        owns: ['/fttx-designer', '/engineering/project'],
+        pages: [
+          { id: 'project-designs', label: 'Design › All Designs', path: '/engineering/project/designs', keywords: ['designs', 'list', 'view all'] },
+          { id: 'project-design-auto', label: 'Design › Auto Design', path: '/fttx-designer', keywords: ['fttx', 'automated design', 'auto design'] },
+          { id: 'project-design-manual', label: 'Design › Manual Design', path: '/engineering/project/design/manual-design', keywords: ['manual design', 'cad'] },
+          { id: 'project-boq', label: 'BOQ', path: '/engineering/project/boq', keywords: ['bill of quantities', 'costing', 'materials'] },
+          { id: 'project-deployed', label: 'Deployed', path: '/engineering/project/deployed', keywords: ['deployment', 'construction'] },
+          { id: 'project-asbuilt', label: 'Deployed › As-Built', path: '/engineering/project/deployed/as-built', keywords: ['as-built', 'as built', 'field records'] },
+        ],
+      },
     ],
   },
   {

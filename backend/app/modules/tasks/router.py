@@ -394,10 +394,24 @@ class TaskService:
         self, db: AsyncSession, caller: User,
         dept_id:     Optional[uuid.UUID] = None,
         assignee_id: Optional[uuid.UUID] = None,
+        task_scope:  Optional[str]       = None,
     ) -> dict:
+        """
+        Get task board grouped by deadline bucket.
+
+        Args:
+            db: Database session
+            caller: Current user
+            dept_id: Filter by department ID
+            assignee_id: Filter by assignee user ID
+            task_scope: Filter by scope - 'internal', 'external', or 'all' (default: all)
+        """
         q = select(Task).options(*_with_rels()).where(Task.is_deleted == False)  # noqa: E712
         if dept_id:     q = q.where(Task.department_id    == dept_id)
         if assignee_id: q = q.where(Task.assignee_user_id == assignee_id)
+        # Scope filter: 'all' or None returns both scopes, specific value filters
+        if task_scope and task_scope != "all":
+            q = q.where(Task.task_scope == task_scope)
         tasks = (await db.execute(q)).scalars().all()
 
         board: dict[str, list | int] = {
@@ -424,13 +438,43 @@ class TaskService:
         page: int = 1,
         size: int = 50,
         task_scope: Optional[str] = None,
+        status: Optional[str] = None,
+        department_id: Optional[uuid.UUID] = None,
     ) -> dict:
+        """
+        List tasks with optional filtering by scope, status, and department.
+
+        Args:
+            db: Database session
+            page: Page number (1-indexed)
+            size: Items per page
+            task_scope: Filter by scope - 'internal', 'external', or 'all' (default: all)
+            status: Filter by status - any valid task status
+            department_id: Filter by department ID
+
+        Returns:
+            Paginated task list with total count
+        """
         base = select(Task).where(Task.is_deleted == False)  # noqa: E712
-        if task_scope:
+
+        # Scope filter: 'all' or None returns both scopes, specific value filters
+        if task_scope and task_scope != "all":
             base = base.where(Task.task_scope == task_scope)
+
+        # Status filter
+        if status:
+            base = base.where(Task.status == status)
+
+        # Department filter
+        if department_id:
+            base = base.where(Task.department_id == department_id)
+
         total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
         rows  = (await db.execute(
-            base.options(*_with_rels()).offset((page - 1) * size).limit(size)
+            base.options(*_with_rels())
+            .order_by(Task.created_at.desc())
+            .offset((page - 1) * size)
+            .limit(size)
         )).scalars().all()
         return {
             "items":       [_task_dict(t) for t in rows],
@@ -975,12 +1019,21 @@ router = APIRouter()
 
 @router.get("/board")
 async def get_board(
-    dept_id:     Optional[uuid.UUID] = None,
-    assignee_id: Optional[uuid.UUID] = None,
+    dept_id:     Optional[uuid.UUID] = Query(None, description="Filter by department ID"),
+    assignee_id: Optional[uuid.UUID] = Query(None, description="Filter by assignee user ID"),
+    task_scope:  Optional[str]       = Query(None, description="Filter by scope: 'internal', 'external', or 'all'"),
     db:     AsyncSession = Depends(get_db),
     caller: User         = Depends(get_current_user),
 ):
-    board = await task_service.get_board(db, caller, dept_id, assignee_id)
+    """
+    Get task board grouped by deadline bucket.
+
+    Query Parameters:
+    - **dept_id**: Filter by department ID
+    - **assignee_id**: Filter by assignee user ID
+    - **task_scope**: 'internal', 'external', or 'all' (default: all)
+    """
+    board = await task_service.get_board(db, caller, dept_id, assignee_id, task_scope)
     return {"success": True, "data": board}
 
 
@@ -1241,13 +1294,29 @@ async def archive_search(
 
 @router.get("")
 async def list_tasks(
-    page:       int            = Query(1, ge=1),
-    size:       int            = Query(50, ge=1, le=200),
-    task_scope: Optional[str]  = Query(None),
-    db:         AsyncSession   = Depends(get_db),
-    _:          User           = Depends(get_current_user),
+    page:          int                 = Query(1, ge=1),
+    size:          int                 = Query(50, ge=1, le=200),
+    task_scope:    Optional[str]       = Query(None, description="Filter by scope: 'internal', 'external', or 'all'"),
+    status:        Optional[str]       = Query(None, description="Filter by task status"),
+    department_id: Optional[uuid.UUID] = Query(None, description="Filter by department ID"),
+    db:            AsyncSession        = Depends(get_db),
+    _:             User                = Depends(get_current_user),
 ):
-    result = await task_service.list_tasks(db, page, size, task_scope)
+    """
+    List tasks with optional filtering.
+
+    Query Parameters:
+    - **scope**: 'internal', 'external', or 'all' (default: all)
+    - **status**: Filter by any valid task status
+    - **department_id**: Filter by department
+    - **page**: Page number (default: 1)
+    - **size**: Items per page (default: 50, max: 200)
+
+    Returns paginated task list with filtering applied.
+    """
+    result = await task_service.list_tasks(
+        db, page, size, task_scope, status, department_id
+    )
     return {"success": True, "data": result}
 
 

@@ -92,6 +92,7 @@ services:
       ENVIRONMENT:         "development"
       FRONTEND_URL:        "http://localhost:5173"
       ALLOWED_ORIGINS_STR: "http://localhost:5173"
+      MPLCONFIGDIR:        "/tmp/matplotlib"
     volumes:
       - ./backend:/app
     ports:
@@ -120,6 +121,12 @@ services:
     volumes:
       - ./backend:/app
     command: celery -A app.core.celery_app worker --pool=solo --loglevel=info
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.core.celery_app inspect ping --timeout=10 | grep -q pong"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
 
   # ── Celery Beat (periodic task scheduler) ──────────────────
   celery-beat:
@@ -143,6 +150,8 @@ services:
     volumes:
       - ./backend:/app
     command: celery -A app.core.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
+    healthcheck:
+      disable: true
 
   # ── React Frontend ─────────────────────────────────────────
   frontend:

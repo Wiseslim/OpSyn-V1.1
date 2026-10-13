@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.core.database import engine, Base
+from app.core.database import engine, Base, ping_db
 from app.core.logging import configure_logging
 from app.core.redis_client import redis_pool
 
@@ -44,6 +44,10 @@ from app.modules.gis.router import router as gis_router
 from app.modules.design.router import router as design_router
 from app.modules.approval.router import router as approval_router
 from app.modules.deployment.router import router as deployment_router
+from app.modules.engineering.design_router import router as engineering_design_router
+from app.modules.engineering.boq_router import router as engineering_boq_router
+from app.modules.engineering.deployment_router import router as engineering_deployment_router
+from app.modules.engineering.asbuilt_router import router as engineering_asbuilt_router
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.forms.router import router as forms_router
 from app.modules.customers.forms_router import router as customer_forms_router
@@ -136,6 +140,10 @@ def create_app() -> FastAPI:
     app.include_router(network_router,        prefix=f"{PREFIX}",              tags=["Network"])
     app.include_router(gis_router,            prefix=f"{PREFIX}",              tags=["GIS"])
     app.include_router(design_router,         prefix=f"{PREFIX}",              tags=["Design"])
+    app.include_router(engineering_design_router, prefix=f"{PREFIX}/engineering",          tags=["Engineering - Designs"])
+    app.include_router(engineering_boq_router,    prefix=f"{PREFIX}/engineering",          tags=["Engineering - BOQ"])
+    app.include_router(engineering_deployment_router, prefix=f"{PREFIX}/engineering",      tags=["Engineering - Deployments"])
+    app.include_router(engineering_asbuilt_router, prefix=f"{PREFIX}/engineering",         tags=["Engineering - As-Built"])
     app.include_router(approval_router,       prefix=f"{PREFIX}",              tags=["Approval"])
     app.include_router(deployment_router,     prefix=f"{PREFIX}",              tags=["Deployment"])
     app.include_router(form_builder_router,            prefix=f"{PREFIX}/form-builder", tags=["Form Builder"])
@@ -164,16 +172,9 @@ def create_app() -> FastAPI:
     # ── Health check ────────────────────────────────────────
     @app.get("/health", tags=["Health"])
     async def health():
-        from app.core.database import get_db
         from app.core.redis_client import redis_pool
-        db_ok    = False
+        db_ok = await ping_db()
         redis_ok = False
-        try:
-            async for session in get_db():
-                await session.execute("SELECT 1")
-                db_ok = True
-        except Exception:
-            pass
         try:
             await redis_pool.client.ping()
             redis_ok = True

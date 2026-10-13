@@ -353,6 +353,7 @@ From the existing `net_assets` and infrastructure database:
   - Line-of-sight analysis
   - Proximity analysis (find assets within X meters)
   - Topology validation (gaps, overlaps, dangles)
+  - symbology(categorize, label)
   
 - **Attribute Management:**
   - Field calculator for computed properties

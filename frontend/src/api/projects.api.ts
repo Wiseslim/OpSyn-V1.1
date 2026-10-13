@@ -6,7 +6,7 @@
 import apiClient from './client';
 import type {
   Project, ProjectPipelineResponse, ProjectPipelineStage, StageComment,
-  PipelineTemplate, APIResponse
+  PipelineTemplate, APIResponse, PaginatedResponse
 } from '@shared';
 
 // Backend returns snake_case; pipeline components expect camelCase.
@@ -23,8 +23,11 @@ function camelizeKeys(o: any): any {
 
 export const projectsApi = {
   list: () =>
-    apiClient.get<APIResponse<Project[]>>('/projects')
-      .then(r => r.data.data),
+    apiClient.get<APIResponse<PaginatedResponse<Project> | Project[]>>('/projects')
+      .then(r => {
+        const payload = r.data.data;
+        return Array.isArray(payload) ? payload : payload.items;
+      }),
 
   get: (id: string) =>
     apiClient.get<APIResponse<Project>>(`/projects/${id}`)

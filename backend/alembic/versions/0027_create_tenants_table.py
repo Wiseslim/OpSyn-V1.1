@@ -56,7 +56,7 @@ def upgrade() -> None:
             'enterprise',
             9999,
             true,
-            '{{}}'
+            jsonb_build_object()
         )
         ON CONFLICT (id) DO NOTHING;
     """)

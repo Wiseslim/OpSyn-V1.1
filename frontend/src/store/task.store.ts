@@ -13,6 +13,7 @@ export interface TaskFilters {
   deadline_bucket: DeadlineBucket | '';
   dept_id:         string;
   assignee_id:     string;
+  task_scope:      'internal' | 'external' | '';
 }
 
 const DEFAULT_FILTERS: TaskFilters = {
@@ -22,6 +23,7 @@ const DEFAULT_FILTERS: TaskFilters = {
   deadline_bucket: '',
   dept_id:         '',
   assignee_id:     '',
+  task_scope:      '',
 };
 
 interface TaskState {

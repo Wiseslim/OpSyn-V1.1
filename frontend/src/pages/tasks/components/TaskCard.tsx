@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { Task } from '@shared';
+import ScopeBadge from './ScopeBadge';
 
 const PRIORITY_COLOR: Record<string, string> = {
   critical: 'var(--color-red)',
@@ -54,23 +55,26 @@ export default function TaskCard({ task, onClick }: Props) {
         background:   barColor,
       }} />
 
-      {/* Ticket number + blocked badge */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-        {task.ticket_number && (
-          <span
-            title="Copy ticket number"
-            onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(task.ticket_number!); }}
-            style={{
-              fontFamily:   'var(--font-mono)',
-              fontSize:     9,
-              color:        'var(--color-teal)',
-              letterSpacing: '0.04em',
-              cursor:       'copy',
-            }}
-          >
-            {task.ticket_number}
-          </span>
-        )}
+      {/* Ticket number + scope badge + blocked badge */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {task.ticket_number && (
+            <span
+              title="Copy ticket number"
+              onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(task.ticket_number!); }}
+              style={{
+                fontFamily:   'var(--font-mono)',
+                fontSize:     9,
+                color:        'var(--color-teal)',
+                letterSpacing: '0.04em',
+                cursor:       'copy',
+              }}
+            >
+              {task.ticket_number}
+            </span>
+          )}
+          <ScopeBadge scope={task.task_scope} size="xs" />
+        </div>
         {task.status === 'blocked' && task.block_reason && (
           <span
             title={task.block_reason}

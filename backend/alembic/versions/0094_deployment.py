@@ -43,8 +43,8 @@ def _audit_function(promote: bool) -> str:
             dsg text;
             changed text[];
             k text;
-            d_old jsonb := '{{}}';
-            d_new jsonb := '{{}}';
+            d_old jsonb := jsonb_build_object();
+            d_new jsonb := jsonb_build_object();
             act text;
         BEGIN
             IF coalesce(current_setting('app.audit_bulk', TRUE), '') = 'off' THEN

@@ -43,6 +43,13 @@ const InfrastructureAuditPage     = lazy(() => import('./pages/infrastructure/In
 const FttxDesignerListPage        = lazy(() => import('./pages/fttx-designer/FttxDesignerListPage'));
 const FttxDesignerWizardPage      = lazy(() => import('./pages/fttx-designer/FttxDesignerWizardPage'));
 const NetworkMapPage              = lazy(() => import('./features/network-map/NetworkMapPage'));
+const ProjectLanding              = lazy(() => import('./pages/engineering/ProjectLanding'));
+const DesignListPage              = lazy(() => import('./pages/engineering/DesignListPage'));
+const ManualDesignPage            = lazy(() => import('./pages/engineering/ManualDesignPage'));
+const BOQPage                     = lazy(() => import('./pages/engineering/BOQPage'));
+const DeployedPage                = lazy(() => import('./pages/engineering/DeployedPage'));
+const DeploymentDashboard         = lazy(() => import('./pages/engineering/DeploymentDashboard'));
+const AsBuiltPage                 = lazy(() => import('./pages/engineering/AsBuiltPage'));
 const RegisterPage                = lazy(() => import('./pages/auth/RegisterPage'));
 const FirstRunWizard              = lazy(() => import('./pages/onboarding/FirstRunWizard'));
 const CustomersPage               = lazy(() => import('./pages/customers/CustomersPage'));
@@ -134,6 +141,13 @@ export default function App() {
               <Route path="infrastructure/audit"     element={<InfrastructureAuditPage />} />
               <Route path="fttx-designer"            element={<FttxDesignerListPage />} />
               <Route path="fttx-designer/:runId"     element={<FttxDesignerWizardPage />} />
+              <Route path="engineering/project"                        element={<ProjectLanding />} />
+              <Route path="engineering/project/designs"                element={<DesignListPage />} />
+              <Route path="engineering/project/design/manual-design"   element={<ManualDesignPage />} />
+              <Route path="engineering/project/boq"                    element={<BOQPage />} />
+              <Route path="engineering/project/deployed"               element={<DeployedPage />} />
+              <Route path="engineering/project/deployed/:deploymentId" element={<DeploymentDashboard />} />
+              <Route path="engineering/project/deployed/as-built"      element={<AsBuiltPage />} />
               <Route path="network"                  element={<NetworkMapPage />} />
               <Route path="settings"                  element={<SettingsPage />} />
               <Route path="settings/forms/:context"  element={<FormBuilderPage />} />

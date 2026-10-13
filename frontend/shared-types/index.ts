@@ -227,6 +227,7 @@ export interface Task {
   description?: string;
   priority: TaskPriority;
   status: TaskStatus;
+  task_scope?: 'internal' | 'external';
   previous_state?: string;
   state_changed_at?: string;
   deadline?: string;

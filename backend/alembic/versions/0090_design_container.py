@@ -69,7 +69,7 @@ def upgrade() -> None:
             boundary           geometry(MultiPolygon, 4326) CHECK (boundary IS NULL OR ST_IsValid(boundary)),
             status             varchar(20)   NOT NULL DEFAULT 'DRAFT' CHECK (status IN {_in(DESIGN_STATUSES)}),
             current_version_id uuid,
-            engine_config      jsonb         NOT NULL DEFAULT '{{}}'::jsonb,
+            engine_config      jsonb         NOT NULL DEFAULT jsonb_build_object(),
             created_by         uuid          REFERENCES users(id) ON DELETE SET NULL,
             updated_by         uuid          REFERENCES users(id) ON DELETE SET NULL,
             created_at         timestamptz   NOT NULL DEFAULT now(),
@@ -105,7 +105,7 @@ def upgrade() -> None:
             design_id   uuid          NOT NULL REFERENCES designs(id) ON DELETE CASCADE,
             layer_key   varchar(30)   NOT NULL CHECK (layer_key IN {_in(INPUT_LAYERS)}),
             geom        geometry(Geometry, 4326) NOT NULL CHECK (ST_IsValid(geom)),
-            properties  jsonb         NOT NULL DEFAULT '{{}}'::jsonb,
+            properties  jsonb         NOT NULL DEFAULT jsonb_build_object(),
             upload_id   uuid          REFERENCES design_input_uploads(id) ON DELETE SET NULL,
             created_at  timestamptz   NOT NULL DEFAULT now()
         )
@@ -149,7 +149,7 @@ def upgrade() -> None:
             asset_id    uuid,
             cable_id    uuid,
             geom        geometry(Geometry, 4326),
-            metadata    jsonb         NOT NULL DEFAULT '{{}}'::jsonb,
+            metadata    jsonb         NOT NULL DEFAULT jsonb_build_object(),
             created_at  timestamptz   NOT NULL DEFAULT now()
         )
     """)

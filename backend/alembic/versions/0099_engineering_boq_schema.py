@@ -69,7 +69,7 @@ def upgrade() -> None:
             standard_cost numeric(15, 2),
             supplier varchar(200),
             lead_time_days integer,
-            specifications jsonb DEFAULT '{{}}'::jsonb,
+            specifications jsonb DEFAULT jsonb_build_object(),
             is_active boolean NOT NULL DEFAULT true,
             created_by uuid REFERENCES users(id) ON DELETE SET NULL,
             created_at timestamptz NOT NULL DEFAULT now(),
@@ -126,7 +126,7 @@ def upgrade() -> None:
             total_cost numeric(15, 2),
             supplier varchar(200),
             lead_time_days integer,
-            specifications jsonb DEFAULT '{{}}'::jsonb,
+            specifications jsonb DEFAULT jsonb_build_object(),
             notes text,
             created_at timestamptz NOT NULL DEFAULT now(),
             updated_at timestamptz NOT NULL DEFAULT now()

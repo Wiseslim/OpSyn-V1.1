@@ -37,7 +37,7 @@ const TABS: { key: ViewMode; label: string }[] = [
 
 function applyFilters(board: TaskBoard | undefined, filters: TaskFiltersState): TaskBoard | undefined {
   if (!board) return undefined;
-  if (!filters.search && !filters.priority && !filters.status && !filters.deadline_bucket) return board;
+  if (!filters.search && !filters.priority && !filters.status && !filters.deadline_bucket && !filters.task_scope) return board;
 
   function filterTasks(tasks: Task[]): Task[] {
     return tasks.filter(t => {
@@ -48,6 +48,7 @@ function applyFilters(board: TaskBoard | undefined, filters: TaskFiltersState): 
       if (filters.priority && t.priority !== filters.priority) return false;
       if (filters.status   && t.status   !== filters.status)   return false;
       if (filters.deadline_bucket && t.deadline_bucket !== filters.deadline_bucket) return false;
+      if (filters.task_scope && t.task_scope !== filters.task_scope) return false;
       return true;
     });
   }
@@ -85,15 +86,20 @@ export default function TasksPage() {
   });
 
   const { data: rawBoard, isLoading } = useQuery({
-    queryKey:        ['tasks', 'board', filters.dept_id],
-    queryFn:         () => tasksApi.getBoard(filters.dept_id ? { dept_id: filters.dept_id } : undefined),
+    queryKey:        ['tasks', 'board', filters.dept_id, filters.task_scope],
+    queryFn:         () => tasksApi.getBoard({
+      dept_id: filters.dept_id || undefined,
+      task_scope: filters.task_scope || undefined,
+    }),
     staleTime:       60 * 1000,
     refetchInterval: 60 * 1000,
   });
 
   const { data: statusBoard, isLoading: statusBoardLoading } = useQuery<TaskStatusBoard>({
-    queryKey:        ['tasks', 'status-board', filters.dept_id],
-    queryFn:         () => tasksApi.getStatusBoard(filters.dept_id ? { dept_id: filters.dept_id } : undefined),
+    queryKey:        ['tasks', 'status-board', filters.dept_id, filters.task_scope],
+    queryFn:         () => tasksApi.getStatusBoard({
+      dept_id: filters.dept_id || undefined,
+    }),
     staleTime:       60 * 1000,
     refetchInterval: 60 * 1000,
     enabled:         view === 'status_board',
@@ -232,6 +238,43 @@ export default function TasksPage() {
             + New Task
           </button>
         </div>
+      </div>
+
+      {/* ── Scope Filter Tabs ──────────────────────────────── */}
+      <div style={{
+        display:      'flex',
+        gap:         4,
+        padding:     '8px 20px',
+        borderBottom: '1px solid var(--color-border)',
+        background:  'var(--bg2)',
+        flexShrink:  0,
+      }}>
+        {[
+          { value: '', label: 'All Tasks' },
+          { value: 'internal', label: 'Internal' },
+          { value: 'external', label: 'External' },
+        ].map((opt) => {
+          const active = filters.task_scope === opt.value;
+          return (
+            <button
+              key={opt.value}
+              onClick={() => setFilters({ task_scope: opt.value as any })}
+              style={{
+                padding:      '6px 14px',
+                fontSize:     11,
+                fontWeight:   active ? 600 : 400,
+                color:        active ? 'var(--color-teal)' : 'var(--color-text-muted)',
+                background:   active ? 'rgba(0,194,168,.10)' : 'transparent',
+                border:       active ? '1px solid rgba(0,194,168,.3)' : '1px solid transparent',
+                borderRadius: 6,
+                cursor:       'pointer',
+                transition:   'all .15s',
+              }}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Filters ─────────────────────────────────────────── */}
