@@ -50,7 +50,7 @@ from app.modules.design.audit import audited
 from app.modules.design import (
     audit, auto_design, boq_service, operations, routing_service, service, snap, validation_service, versions,
 )
-from app.modules.design.inputs import parse_input_file
+from app.modules.design.inputs import MAX_DESIGN_INPUT_BYTES, parse_input_file
 from app.modules.design.models import INPUT_LAYERS
 from app.modules.design.schemas import (
     DesignCreate, DesignUpdate, GenerateRequest, ImportRunRequest, RouteRequest, SaveVersionRequest, SnapRequest,
@@ -58,9 +58,6 @@ from app.modules.design.schemas import (
 from app.modules.staff.models import User
 
 router = APIRouter()
-
-MAX_INPUT_BYTES = 20 * 1024 * 1024
-
 
 def _layer(layer_key: str) -> str:
     if layer_key not in INPUT_LAYERS:
@@ -133,8 +130,8 @@ async def upload_inputs(
 ):
     layer = _layer(layer_key)
     design = await service.load_design(db, caller.tenant_id, design_id)
-    data = await file.read(MAX_INPUT_BYTES + 1)
-    if len(data) > MAX_INPUT_BYTES:
+    data = await file.read(MAX_DESIGN_INPUT_BYTES + 1)
+    if len(data) > MAX_DESIGN_INPUT_BYTES:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "The file is larger than 20 MB; split it into smaller files")
     from fastapi.concurrency import run_in_threadpool
     parsed = await run_in_threadpool(parse_input_file, layer, file.filename or "upload.geojson", data)

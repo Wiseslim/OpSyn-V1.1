@@ -18,7 +18,7 @@ from pydantic import ValidationError
 
 from app.modules.design.engine_bridge import MissingInputs, _explode_multilines, build_context
 from app.modules.design.hydrator import CABLE_GROUP
-from app.modules.design.inputs import GEOMETRY_TYPES, parse_input_file
+from app.modules.design.inputs import GEOMETRY_TYPES, MAX_DESIGN_INPUT_BYTES, parse_input_file
 from app.modules.design.models import DESIGN_STATUSES, EDITABLE_STATUSES, INPUT_LAYERS
 from app.modules.design.schemas import DesignCreate, DesignUpdate, RouteRequest
 from app.modules.network.asset_types import CABLE_CATEGORIES
@@ -88,6 +88,16 @@ class TestInputParser:
         assert parse_input_file("pole", "p.geojson", gj()).errors[0]["error"] == "The file has no features"
         assert "not valid JSON" in parse_input_file("pole", "p.geojson", b"{").errors[0]["error"]
         assert parse_input_file("pole", "p.geojson", gj(feat(POINT))).file_hash
+
+    def test_design_point_uploads_accept_files_over_the_network_upload_limit(self):
+        data = gj(feat(POINT)) + b" " * (10 * 1024 * 1024)
+        assert 10 * 1024 * 1024 < len(data) < MAX_DESIGN_INPUT_BYTES
+        out = parse_input_file("pole", "p.geojson", data)
+        assert not out.errors and len(out.features) == 1
+
+    def test_design_input_size_limit_is_reported(self):
+        out = parse_input_file("homepass", "h.geojson", b" " * (MAX_DESIGN_INPUT_BYTES + 1))
+        assert out.errors[0]["error"].endswith("the limit is 20 MB")
 
 
 class TestSchemas:

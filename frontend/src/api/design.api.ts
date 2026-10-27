@@ -50,7 +50,7 @@ export const designApi = {
     const fd = new FormData();
     fd.append('file', file);
     return apiClient.post<APIResponse<DesignInputUploadResult>>(`/designs/${id}/inputs/${layer}`, fd, {
-      params: { mode }, headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120_000,
+      params: { mode }, timeout: 300_000,
     }).then(r => r.data.data);
   },
 

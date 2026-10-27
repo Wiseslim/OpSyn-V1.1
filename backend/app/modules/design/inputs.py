@@ -31,6 +31,7 @@ from shapely.geometry import shape
 
 from app.modules.network.upload import FileError, line_from_row, point_from_row, read_rows
 
+MAX_DESIGN_INPUT_BYTES = 20 * 1024 * 1024
 MAX_FEATURES = 50_000
 MAX_ERRORS_REPORTED = 200
 
@@ -110,7 +111,7 @@ def _count(props: dict[str, Any]) -> tuple[int | None, bool]:
 def parse_input_file(layer: str, filename: str, data: bytes) -> ParsedInputs:
     out = ParsedInputs(file_hash=hashlib.sha256(data).hexdigest())
     try:
-        _headers, rows = read_rows(filename, data)
+        _headers, rows = read_rows(filename, data, max_bytes=MAX_DESIGN_INPUT_BYTES)
     except FileError as exc:
         out.errors.append({"row": 0, "field": "file", "error": str(exc)})
         return out

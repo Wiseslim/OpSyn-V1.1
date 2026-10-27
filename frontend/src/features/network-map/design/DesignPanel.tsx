@@ -12,7 +12,7 @@ import { ArrowLeft, PanelLeftClose, PenLine, Shapes, Trash2, Upload } from 'luci
 import type { Design, DesignInputLayer, DesignInputLayerKey, DesignInputUploadResult } from '@shared';
 import { Badge } from '../../../components/ui';
 import {
-  DESIGN_STATUS_LABEL, DESIGN_STATUS_TONE, INPUT_LAYERS, INPUT_META, designError, isEditable, type InputLayerMeta,
+  DESIGN_STATUS_LABEL, DESIGN_STATUS_TONE, INPUT_LAYERS, INPUT_META, MAX_DESIGN_INPUT_BYTES, designError, isEditable, type InputLayerMeta,
 } from './designFormat';
 import { useBoundaryFromInputs, useDesignInputs, useRemoveInputs, useUpdateDesign, useUploadInputs } from './designQueries';
 import { useDesignMapStore } from './designStore';
@@ -66,18 +66,25 @@ function InputRow({ designId, layer, editable }: { designId: string; layer: Desi
   const fileRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<File | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
   const { hiddenInputs, toggleInput } = useDesignMapStore();
   const upload = useUploadInputs(designId);
   const remove = useRemoveInputs(designId);
 
   const send = (file: File, mode: 'replace' | 'append') => {
     setPending(null);
+    setFileError(null);
     upload.mutate({ layer: key, file, mode });
   };
   const onFile = (file: File | undefined) => {
     if (!file) return;
     if (fileRef.current) fileRef.current.value = '';
     upload.reset();
+    setFileError(null);
+    if (file.size > MAX_DESIGN_INPUT_BYTES) {
+      setFileError(`${file.name} is larger than the 20 MB upload limit. Split the data into smaller files and try again.`);
+      return;
+    }
     if (count === 0) send(file, 'replace');
     else setPending(file);                        // ask: replace or add?
   };
@@ -143,6 +150,7 @@ function InputRow({ designId, layer, editable }: { designId: string; layer: Desi
         </div>
       )}
       {remove.isError && <p className={d.err} role="alert">{designError(remove.error)}</p>}
+      {fileError && <p className={d.err} role="alert">{fileError}</p>}
       <UploadOutcome result={upload.data} error={upload.error} />
     </li>
   );

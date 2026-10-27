@@ -174,6 +174,16 @@ describe('DesignPanel', () => {
     expect(screen.getByText(/counted as 1/)).toBeInTheDocument();
   });
 
+  it('explains the size limit before sending an oversized homepass file', async () => {
+    api.inputs.mockResolvedValue(INPUTS);
+    const oversized = new File(['x'], 'homepasses.geojson', { type: 'application/geo+json' });
+    Object.defineProperty(oversized, 'size', { value: 20 * 1024 * 1024 + 1 });
+    const { container } = wrap(<DesignPanel design={DESIGN} onHide={() => {}} onFit={() => {}} />);
+    await userEvent.upload(container.querySelectorAll('input[type=file]')[1] as HTMLInputElement, oversized);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/larger than the 20 MB upload limit/);
+    expect(api.uploadInputs).not.toHaveBeenCalled();
+  });
+
   it('asks whether to replace or add when the layer has features, and reports a rejected file', async () => {
     api.inputs.mockResolvedValue(INPUTS);
     api.uploadInputs.mockResolvedValue({ status: 'rejected', layer_key: 'road', feature_count: 0,

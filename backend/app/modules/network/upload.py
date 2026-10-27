@@ -145,12 +145,16 @@ def _norm_key(k: Any) -> str:
     return str(k).strip().lower()
 
 
-def read_rows(filename: str, data: bytes) -> tuple[list[str], Iterator[tuple[int, dict[str, Any], dict | None]]]:
+def read_rows(
+    filename: str,
+    data: bytes,
+    max_bytes: int = MAX_BYTES,
+) -> tuple[list[str], Iterator[tuple[int, dict[str, Any], dict | None]]]:
     """(header names, iterator of (row number, row dict, GeoJSON geometry or None))."""
     if not data:
         raise FileError("The file is empty")
-    if len(data) > MAX_BYTES:
-        raise FileError(f"The file is {len(data) / 1048576:.1f} MB; the limit is {MAX_BYTES // 1048576} MB")
+    if len(data) > max_bytes:
+        raise FileError(f"The file is {len(data) / 1048576:.1f} MB; the limit is {max_bytes // 1048576} MB")
     fmt = file_format(filename)
 
     if fmt == "xlsx":

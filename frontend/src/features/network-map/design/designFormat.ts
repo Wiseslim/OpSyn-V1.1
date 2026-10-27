@@ -31,16 +31,18 @@ export interface InputLayerMeta {
   geometry: 'line' | 'point' | 'area';
 }
 
+export const MAX_DESIGN_INPUT_BYTES = 20 * 1024 * 1024;
+
 // Inputs are context, drawn quieter than the network: roads as a grey
 // casing the cables sit on, points as small hollow rings, so the design's
 // own FDT/FAT plates stay the loudest thing on the map.
 export const INPUT_LAYERS: InputLayerMeta[] = [
-  { key: 'road', label: 'Roads', accepts: 'Lines (GeoJSON, or Excel with geometry_wkt)', color: '#8A96A3', geometry: 'line' },
-  { key: 'homepass', label: 'Homepasses', accepts: 'Points with a customer count', color: '#D9480F', geometry: 'point' },
-  { key: 'pole', label: 'Poles', accepts: 'Points (GeoJSON, or Excel longitude/latitude)', color: '#5C3D99', geometry: 'point' },
-  { key: 'building', label: 'Buildings', accepts: 'Polygons (GeoJSON) or points', color: '#B08968', geometry: 'area' },
-  { key: 'pickup', label: 'Pickup points', accepts: 'Points', color: '#0B6E5B', geometry: 'point' },
-  { key: 'existing_structure', label: 'Existing structures', accepts: 'Points', color: '#3B5B7A', geometry: 'point' },
+  { key: 'road', label: 'Roads', accepts: 'Lines (GeoJSON, or Excel with geometry_wkt); max 20 MB', color: '#8A96A3', geometry: 'line' },
+  { key: 'homepass', label: 'Homepasses', accepts: 'Points with a customer count; max 20 MB', color: '#D9480F', geometry: 'point' },
+  { key: 'pole', label: 'Poles', accepts: 'Points (GeoJSON, or Excel longitude/latitude); max 20 MB', color: '#5C3D99', geometry: 'point' },
+  { key: 'building', label: 'Buildings', accepts: 'Polygons (GeoJSON) or points; max 20 MB', color: '#B08968', geometry: 'area' },
+  { key: 'pickup', label: 'Pickup points', accepts: 'Points; max 20 MB', color: '#0B6E5B', geometry: 'point' },
+  { key: 'existing_structure', label: 'Existing structures', accepts: 'Points; max 20 MB', color: '#3B5B7A', geometry: 'point' },
 ];
 export const INPUT_META = Object.fromEntries(INPUT_LAYERS.map(l => [l.key, l])) as Record<DesignInputLayerKey, InputLayerMeta>;
 
